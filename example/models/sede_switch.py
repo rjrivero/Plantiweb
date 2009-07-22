@@ -28,3 +28,7 @@ class Puertos(models.Model):
 
     def __unicode__(self):
         return self.interfaces
+
+    class Meta:
+        app_label = 'example'
+        db_table = 'sede_switch_puertos'

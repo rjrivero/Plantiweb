@@ -24,6 +24,10 @@ class Switches(models.Model):
             return self.nombre
         return "%s (%s)" % (self.nombre, self. descripcion)
 
+    class Meta:
+        app_label = 'example'
+        db_table = 'sede_switches'
+
 
 class Vlans(models.Model):
 
@@ -37,3 +41,7 @@ class Vlans(models.Model):
         if not self.descripcion:
             return self.nombre
         return "%s (%s)" % (self.nombre, self. descripcion)
+
+    class Meta:
+        app_label = 'example'
+        db_table = 'sede_vlans'

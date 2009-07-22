@@ -20,10 +20,14 @@ class Areas(models.Model):
                                 ("stub", "Stub"),
                                 ("stub no summary", "Totally Stubby"),
                                 ("nssa", "Not-so-stubby")))
-    rango = models.charfield(max_length=32, null=True, blank=True)
+    rango = models.CharField(max_length=32, null=True, blank=True)
 
     def __unicode__(self):
         return "Area %d (%s)" % (self.numero, self.nombre)
+
+    class Meta:
+        app_label = 'example'
+        db_table = 'areas'
 
 
 class Sedes(models.Model):
@@ -37,3 +41,7 @@ class Sedes(models.Model):
 
     def __unicode__(self):
         return "%s (%s)" % (self.nombre, self.descripcion)
+
+    class Meta:
+        app_label = 'example'
+        db_table = 'sedes'

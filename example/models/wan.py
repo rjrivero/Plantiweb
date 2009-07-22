@@ -15,15 +15,19 @@ class WANs(models.Model):
     __metaclass__ = MetaClass
 
     vlan = models.IntegerField()
-    descripcion = models.charField(max_length=200)
+    descripcion = models.CharField(max_length=200)
     area = Relation(Areas)
-    desde = Relation(Switches)
-    hasta = Relation(Switches, blank=True, null=True)
+    desde = Relation(Switches, related_name='wans_from_set')
+    hasta = Relation(Switches, related_name='wans_to_set')
     ip1 = models.IPAddressField()
     puerto1 = models.IntegerField()
-    ip2 = IPAddressField(null=True, blank=True)
+    ip2 = models.IPAddressField(null=True, blank=True)
     puerto2 = models.IntegerField(null=True, blank=True)
     password_ospf = models.CharField(max_length=32, blank=True, null=True)
 
     def __unicode__(self):
         return "VLAN %d (%s)" % (self.vlan, self.descripcion)
+
+    class Meta:
+        app_label = 'example'
+        db_table = 'wans'
