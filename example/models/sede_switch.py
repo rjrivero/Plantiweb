@@ -6,10 +6,10 @@ from django.db import models
 
 from plantillator.data.meta import Relation, dynamic
 from ..meta import MetaClass
-from .sede import Switches as Sede_Switches
+from .sede import Sede_Switches
     
     
-class Puertos(models.Model):
+class Sede_Switch_Puertos(models.Model):
 
     __metaclass__ = MetaClass
 
@@ -31,4 +31,4 @@ class Puertos(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'sede_switch_puertos'
+        dataobject = 'puertos'

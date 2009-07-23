@@ -6,11 +6,10 @@ from django.db import models
 
 from plantillator.data.meta import Relation, dynamic
 from ..meta import MetaClass
-from .sede import Vlans as Sede_Vlans
-from .sede import Switches as Sede_Switches
+from .sede import Sede_Vlans, Sede_Switches
     
     
-class Vlans(models.Model):
+class Sede_Vlan_Vlans(models.Model):
 
     __metaclass__ = MetaClass
 
@@ -28,10 +27,10 @@ class Vlans(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'sede_vlan_vlans'
+        dataobject = 'vlans'
 
 
-class Switches(models.Model):
+class Sede_Vlan_Switches(models.Model):
 
     __metaclass__ = MetaClass
 
@@ -48,4 +47,4 @@ class Switches(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'sede_vlan_switches'
+        dataobject = 'switches'

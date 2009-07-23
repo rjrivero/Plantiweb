@@ -7,7 +7,7 @@ from django.db import models
 from plantillator.data.meta import Relation, dynamic
 from ..meta import MetaClass
 from .root import Areas
-from .sede import Switches
+from .sede import Sede_Switches
     
     
 class WANs(models.Model):
@@ -17,8 +17,8 @@ class WANs(models.Model):
     vlan = models.IntegerField()
     descripcion = models.CharField(max_length=200)
     area = Relation(Areas)
-    desde = Relation(Switches, related_name='wans_from_set')
-    hasta = Relation(Switches, related_name='wans_to_set')
+    desde = Relation(Sede_Switches, related_name='wans_from_set')
+    hasta = Relation(Sede_Switches, related_name='wans_to_set')
     ip1 = models.IPAddressField()
     puerto1 = models.IntegerField()
     ip2 = models.IPAddressField(null=True, blank=True)
@@ -30,4 +30,3 @@ class WANs(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'wans'

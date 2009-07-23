@@ -3,10 +3,8 @@
 
 # los modelos estan definidos en el paquete "tipos"
 from .root import Areas, Sedes
-from .sede import Switches as Sede_Switches
-from .sede import Vlans as Sede_Vlans
-from .sede_switch import Puertos as Sede_Switch_Puertos
-from .sede_vlan import Vlans as Sede_Vlan_Vlans
-from .sede_vlan import Switches as Sede_Vlan_Switches
+from .sede import Sede_Switches, Sede_Vlans
+from .sede_switch import Sede_Switch_Puertos
+from .sede_vlan import Sede_Vlan_Vlans, Sede_Vlan_Switches
 from .wan import WANs
 

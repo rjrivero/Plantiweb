@@ -9,7 +9,7 @@ from ..meta import MetaClass
 from .root import Sedes
     
     
-class Switches(models.Model):
+class Sede_Switches(models.Model):
 
     __metaclass__ = MetaClass
 
@@ -26,10 +26,10 @@ class Switches(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'sede_switches'
+        dataobject = 'switches'
 
 
-class Vlans(models.Model):
+class Sede_Vlans(models.Model):
 
     __metaclass__ = MetaClass
 
@@ -44,4 +44,4 @@ class Vlans(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'sede_vlans'
+        dataobject = 'vlans'
