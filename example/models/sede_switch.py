@@ -31,4 +31,3 @@ class Sede_Switch_Puertos(models.Model):
 
     class Meta:
         app_label = 'example'
-        dataobject = 'puertos'

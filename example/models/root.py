@@ -27,7 +27,6 @@ class Areas(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'areas'
 
 
 class Sedes(models.Model):
@@ -44,4 +43,3 @@ class Sedes(models.Model):
 
     class Meta:
         app_label = 'example'
-        db_table = 'sedes'

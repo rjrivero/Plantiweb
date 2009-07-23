@@ -26,7 +26,6 @@ class Sede_Switches(models.Model):
 
     class Meta:
         app_label = 'example'
-        dataobject = 'switches'
 
 
 class Sede_Vlans(models.Model):
@@ -44,4 +43,3 @@ class Sede_Vlans(models.Model):
 
     class Meta:
         app_label = 'example'
-        dataobject = 'vlans'

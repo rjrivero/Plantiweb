@@ -14,11 +14,10 @@ class Sede_Vlan_Vlans(models.Model):
     __metaclass__ = MetaClass
 
     _up = Relation(Sede_Vlans)
-    numero = models.IntegerField
+    numero = models.IntegerField()
     nombre = models.CharField(max_length=32)
     rango = models.CharField(max_length=32, null=True, blank=True)
     dhcp_relay = models.CharField(max_length=200, null=True, blank=True)
-
 
     def __unicode__(self):
         if not self.descripcion:
@@ -27,7 +26,6 @@ class Sede_Vlan_Vlans(models.Model):
 
     class Meta:
         app_label = 'example'
-        dataobject = 'vlans'
 
 
 class Sede_Vlan_Switches(models.Model):
@@ -47,4 +45,3 @@ class Sede_Vlan_Switches(models.Model):
 
     class Meta:
         app_label = 'example'
-        dataobject = 'switches'
