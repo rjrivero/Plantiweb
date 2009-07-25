@@ -1,5 +1,10 @@
 # Django settings for trunk project.
 
+
+import os.path
+current = os.path.dirname(__file__)
+
+
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 DEBUG_SQL = True
@@ -36,12 +41,12 @@ USE_I18N = True
 
 # Absolute path to the directory that holds media.
 # Example: "/home/media/media.lawrence.com/"
-MEDIA_ROOT = ''
+MEDIA_ROOT = os.path.join(current, 'resources').replace('\\', '/')
 
 # URL that handles the media served from MEDIA_ROOT. Make sure to use a
 # trailing slash if there is a path component (optional in other cases).
 # Examples: "http://media.lawrence.com", "http://example.com/media/"
-MEDIA_URL = ''
+MEDIA_URL = '/resources/'
 
 # URL prefix for admin media -- CSS, JavaScript and images. Make sure to use a
 # trailing slash.
@@ -66,12 +71,13 @@ MIDDLEWARE_CLASSES = (
 )
 
 #ROOT_URLCONF = 'trunk.urls'
-ROOT_URLCONF = 'urls'
+ROOT_URLCONF = 'plantiweb.urls'
 
 TEMPLATE_DIRS = (
     # Put strings here, like "/home/html/django_templates" or "C:/www/django/templates".
     # Always use forward slashes, even on Windows.
     # Don't forget to use absolute paths, not relative paths.
+    os.path.join(current, 'templates').replace('\\', '/')
 )
 
 INSTALLED_APPS = (
@@ -82,3 +88,4 @@ INSTALLED_APPS = (
     'django.contrib.admin',
     'plantiweb.example',
 )
+

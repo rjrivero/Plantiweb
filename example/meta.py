@@ -5,7 +5,7 @@
 from django.db import models
 
 from plantillator.data.dataobject import RootType
-from plantillator.data.meta import extend, django_prop
+from plantillator.data.meta import new, django_prop
     
     
 class MetaClass(models.Model.__metaclass__):
@@ -22,6 +22,5 @@ class MetaClass(models.Model.__metaclass__):
     root = RootType(django_prop)
     data = root()
 
-    def __new__(cls, name, bases, d):
-        cls = models.Model.__metaclass__.__new__(cls, name, bases, d)
-        return extend(cls, name, bases, d, MetaClass.data)
+    def __new__(cls, n, b, d):
+        return new(models.Model.__metaclass__, cls, n, b, d, MetaClass.data)

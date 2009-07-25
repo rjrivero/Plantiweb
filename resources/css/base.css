@@ -1,0 +1,30 @@
+body {
+ font-family: Verdana, Arial, Helvetica, sans-serif;
+ font-size: medium;
+ font.weight: normal;
+}
+
+DIV.header {
+ background-color: #EEEEEE;
+ padding: 10px;
+ border: solid 1px black;
+}
+
+DIV#header {
+ clear: both;
+}
+
+SPAN.customer {
+ font-size: large;
+ font-weight: bold;
+ color: #663366;
+ text-align: left;
+}
+
+SPAN.provider {
+ font-size: large;
+ font-weight: normal;
+ font-style: italic;
+ color: #333366;
+ text-align: right;
+}
