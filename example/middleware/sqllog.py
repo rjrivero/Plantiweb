@@ -55,7 +55,7 @@ class SQLLogMiddleware:
             seen[sql]=c+1
             
         t = Template('''
-            <p>
+            <p class="sqllog">
              <em>request.path:</em> {{ request.path|escape }}<br />
              <em>Total query count:</em> {{ queries|length }}<br/>
              <em>Total duplicate query count:</em> {{ duplicate }}<br/>

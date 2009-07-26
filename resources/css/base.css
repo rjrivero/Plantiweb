@@ -1,30 +1,114 @@
 body {
  font-family: Verdana, Arial, Helvetica, sans-serif;
  font-size: medium;
- font.weight: normal;
+ font-weight: normal;
+}
+
+.sqllog {
+ color: #666666;
+ font-size: small;
 }
 
 DIV.header {
- background-color: #EEEEEE;
+ background-color: white;
  padding: 10px;
  border: solid 1px black;
+ text-align: right;
 }
 
-DIV#header {
- clear: both;
+.itemlist{
+ padding: 0;
+ margin: 0;
+ border: none;
 }
 
-SPAN.customer {
+DIV.itemlist {
+ float: right;
+ width: 85%
+}
+
+TABLE.itemlist {
+ table-layout:fixed;
+ width: 100%;
+}
+
+.itemhead {
+ background-color: #DDEEDD;
+ padding: 0;
+ margin: 0;
+ border: none;
+}
+
+#customer {
  font-size: large;
  font-weight: bold;
  color: #663366;
  text-align: left;
+ float: left;
+ width: 40%;
 }
 
-SPAN.provider {
+#provider {
  font-size: large;
  font-weight: normal;
  font-style: italic;
  color: #333366;
- text-align: right;
+}
+
+a:link, a:visited {
+ text-decoration: none;
+ font-color: black;
+}
+
+a:hover {
+ text-decoration: underline;
+ font-color: blue;
+}
+
+DIV.leftbar {
+ width: 15%;
+ padding: 0;
+ margin: 0;
+ border: no;
+}
+
+#leftbar ul {
+ list-style: none;
+ margin: 0px;
+ padding: 0px;
+}
+
+#leftbar li {
+ font-style: italic;
+ padding: 2px;
+}
+
+#leftbar a {
+ font-style: normal;
+}
+
+.odd {
+ background-color: #F0F0F0;
+}
+
+.even {
+ background-color: #F9F9F9;
+}
+
+.breadcrumbs {
+ padding: 5px;
+ margin: 0px;
+ background-color: #EEEEFF;
+ text-align: left;
+}
+
+.breadcrumbs ul {
+ list-style: none;
+ padding: 0;
+ margin: 0;
+}
+
+.breadcrumbs li {
+ display: inline;
+ padding-right: 10px;
 }

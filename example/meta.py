@@ -20,6 +20,7 @@ class MetaClass(models.Model.__metaclass__):
     """
 
     root = RootType(django_prop)
+    root.__str__ = lambda self: "ROOT"
     data = root()
 
     def __new__(cls, n, b, d):

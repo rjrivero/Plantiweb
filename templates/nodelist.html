@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{{ parent }}{% endblock %}
+{% block description %}{{ parent }}{% endblock %}
+{% block stylesheets %}
+{{ block.super }}
+<link rel="stylesheet" href="/resources/css/nodelist.css" type="text/css">
+{% endblock %}
+
+{% block base_body %}
+
+<!-- Barra superior - bradcrumbs -->
+<div id="breadcrumbs" class="breadcrumbs">
+  <ul>
+    {% for brpath, britem, brattr in crumbs %}
+     <li>&gt;</li>
+     <li>
+     {% if brpath %}
+       <a href="{% url listview path=brpath,id=britem.pk,attr=brattr %}">{{ britem }}</a>
+     {% else %}
+       <a href="{% url rootview attr=brattr %}">ROOT</a>
+     {% endif %}
+     </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="itemlist">
+{% if not data_FieldSet %}
+  <span class="emptylist">Por favor, seleccione una tabla</span>
+{% else %}
+  {% load attrib %}
+  <table class="itemlist">
+  <thead>
+    <tr class="itemhead">
+    {% for name, val in data_FieldSet %}
+      <th class="scope="col">{{ name|capfirst }}</th>
+    {% endfor %}
+    </tr>
+  </thead>
+  <!--{% cycle "even" "odd" as tdcolor %}-->
+  <tbody>
+    {% for item in data_list %}
+      <tr class="{% cycle tdcolor %}">
+      {% for name, val in data_FieldSet %}
+        <td>{{ item|getattr:name }}</td>
+      <!--<td><a class="nodelink" href="{% url example.views.node path=subpath,id=item.pk %}">{{ item }}</a></td>-->
+      {% endfor %}
+      </tr>
+    {% endfor %}
+  </tbody>
+  </table>
+{% endif %}
+</div>
+
+<!-- Barra lateral - datos del objeto -->
+<div id="leftbar" class="leftbar">
+  <ul>
+    <!--{% cycle "even" "odd" as licolor %}-->
+    {% for name, value in parent_Subtypes %}
+      {%ifequal name attr %}
+        <li class="{% cycle licolor %}">{{ name|capfirst }}</li>
+      {% else %}
+        <li class="{% cycle licolor %}">
+          {% if path %}
+            <a href="{% url listview path=path,id=parent.pk,attr=name %}">{{ name|capfirst }}</a>
+          {% else %}
+            <a href="{% url rootview attr=name %}">{{ name|capfirst }}</a>
+          {%endif %}
+        </li>
+      {% endifequal %}
+    {% endfor %}
+  </ul>
+</div>
+
+{% endblock %}

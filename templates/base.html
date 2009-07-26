@@ -7,20 +7,25 @@
 <title>{% block title %}T&iacute;tulo{% endblock %}</title>  
 <meta name="author" content="Rafael Rivero" />
 <meta name="copyright" content="Copyright (c) Rafael Rivero" />
-<meta name="description" content="{%block description %}Descripcion{% endblock %}" />
+<meta name="description" content="{% block description %}Descripcion{% endblock %}" />
+
+<!-- STYLESHEETS -->
+{% block stylesheets %}
+<link rel="stylesheet" href="/resources/css/base.css" type="text/css">
+{% endblock %}
 
 </head>
 
-<!-- EVERYTHING -->
+<!-- CUERPO -->
 <body id="basebody">
 
-<!-- HEADER -->
+<!-- CABECERA -->
 <div id="header" class="header">
-    <span class="customer">{{ customer }}</span>
-    <span class="provider">{{ provider }}</span>
+    <div id="customer">{{ customer }}</div>
+    <div id="provider"><img src="/resources/img/logo.jpg" alt="{{ provider }}"/></div>
 </div>
 
-{%block base_body %}
+{%block base_body %}{% endblock %}
 
 </body>
 
