@@ -4,20 +4,20 @@
 
 from django.db import models
 
-from plantillator.data.meta import Relation, dynamic
+from plantillator.djread.djdata import *
 from ..meta import MetaClass
 from .root import Sedes
     
     
-class Sede_Switches(models.Model):
+class Sede_Switches(DJModel):
 
     __metaclass__ = MetaClass
 
-    _up = Relation(Sedes)
-    nombre = models.CharField(max_length=32)
+    _up         = childOf(Sedes)
+    nombre      = anchor(models.CharField, max_length=32)
     descripcion = models.CharField(max_length=200, null=True, blank=True)
-    password = models.CharField(max_length=32, null=True, blank=True)
-    loopback = models.IPAddressField(null=True, blank=True)
+    password    = models.CharField(max_length=32, null=True, blank=True)
+    loopback    = models.IPAddressField(null=True, blank=True)
 
     def __unicode__(self):
         if not self.descripcion:
@@ -28,12 +28,12 @@ class Sede_Switches(models.Model):
         app_label = 'example'
 
 
-class Sede_Vlans(models.Model):
+class Sede_Vlans(DJModel):
 
     __metaclass__ = MetaClass
 
-    _up = Relation(Sedes)
-    nombre = models.CharField(max_length=32)
+    _up         = childOf(Sedes)
+    nombre      = models.CharField(max_length=32)
     descripcion = models.CharField(max_length=200, null=True, blank=True)
 
     def __unicode__(self):
@@ -43,3 +43,4 @@ class Sede_Vlans(models.Model):
 
     class Meta:
         app_label = 'example'
+

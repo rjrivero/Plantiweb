@@ -4,19 +4,19 @@
 
 from django.db import models
 
-from plantillator.data.meta import Relation, dynamic
+from plantillator.djread.djdata import *
 from ..meta import MetaClass
 from .sede import Sede_Vlans, Sede_Switches
     
     
-class Sede_Vlan_Vlans(models.Model):
+class Sede_Vlan_Vlans(DJModel):
 
     __metaclass__ = MetaClass
 
-    _up = Relation(Sede_Vlans)
-    numero = models.IntegerField()
-    nombre = models.CharField(max_length=32)
-    rango = models.CharField(max_length=32, null=True, blank=True)
+    _up        = childOf(Sede_Vlans)
+    numero     = models.IntegerField()
+    nombre     = models.CharField(max_length=32)
+    rango      = models.CharField(max_length=32, null=True, blank=True)
     dhcp_relay = models.CharField(max_length=200, null=True, blank=True)
 
     def __unicode__(self):
@@ -28,20 +28,25 @@ class Sede_Vlan_Vlans(models.Model):
         app_label = 'example'
 
 
-class Sede_Vlan_Switches(models.Model):
+class Sede_Vlan_Switches(DJModel):
 
     __metaclass__ = MetaClass
 
-    _up = Relation(Sede_Vlans)
-    switch = Relation(Sede_Switches)
-    ip = models.IPAddressField(blank=True, null=True)
+    _up     = childOf(Sede_Vlans)
+
+    @relation(Sede_Switches, 'nombre')
+    def switch(self, data):
+        return self.up.up.switches
+
+    ip      = models.IPAddressField(blank=True, null=True)
     accesos = models.CharField(max_length=200, null=True, blank=True)
     uplinks = models.CharField(max_length=200, null=True, blank=True)
 
     def __unicode__(self):
         if not self.ip:
-            return str(self.switch)
-        return "%s (%s)" % (str(self.switch), self. ip)
+            return self.switch
+        return "%s (%s)" % (self.switch, self. ip)
 
     class Meta:
         app_label = 'example'
+

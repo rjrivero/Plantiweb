@@ -4,10 +4,10 @@
 
 from django.db import models
 
-from plantillator.data.dataobject import RootType
-from plantillator.data.meta import new, django_prop
-    
-    
+from plantillator.data.dataobject import DataType
+from plantillator.djread.meta import MetaData
+
+
 class MetaClass(models.Model.__metaclass__):
 
     """MetaClase que convierte los modelos en DataObjects
@@ -19,9 +19,12 @@ class MetaClass(models.Model.__metaclass__):
     copias de la MetaClase y sus respectivos atributos (data, root).
     """
 
-    root = RootType(django_prop)
+    root = DataType(object)
     root.__str__ = lambda self: "ROOT"
     data = root()
 
     def __new__(cls, n, b, d):
-        return new(models.Model.__metaclass__, cls, n, b, d, MetaClass.data)
+        cls = super(MetaClass, cls).__new__(cls, n, b, d)
+        setattr(cls, '_DOMD', MetaData(cls, n, b, d, MetaClass.data))
+        return cls
+
