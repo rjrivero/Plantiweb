@@ -27,6 +27,9 @@ class Sede_Switches(DJModel):
     class Meta:
         app_label = 'example'
 
+    class DOMD:
+        summary = 'nombre, descripcion, loopback'.split(', ')
+
 
 class Sede_Vlans(DJModel):
 
@@ -44,3 +47,5 @@ class Sede_Vlans(DJModel):
     class Meta:
         app_label = 'example'
 
+    class DOMD:
+        summary = 'nombre, descripcion'.split(', ')

@@ -28,6 +28,9 @@ class Areas(DJModel):
     class Meta:
         app_label = 'example'
 
+    class DOMD:
+        summary = 'numero, nombre, descripcion, tipo, rango'.split(', ')
+
 
 class Sedes(DJModel):
 
@@ -46,4 +49,7 @@ class Sedes(DJModel):
 
     class Meta:
         app_label = 'example'
+
+    class DOMD:
+        summary = 'nombre, descripcion, area'.split(', ')
 

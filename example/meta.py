@@ -4,8 +4,8 @@
 
 from django.db import models
 
-from plantillator.data.dataobject import DataType
-from plantillator.djread.meta import MetaData, RootData
+from plantillator.djread.meta import MetaData
+from plantillator.djread.djdata import RootType
 
 
 class MetaClass(models.Model.__metaclass__):
@@ -19,11 +19,12 @@ class MetaClass(models.Model.__metaclass__):
     copias de la MetaClase y sus respectivos atributos (data, root).
     """
 
-    data = RootData()
-    root = data._type
+    root = RootType()
+    data = root()
 
     def __new__(cls, n, b, d):
+        meta = MetaData(MetaClass.root, n, b, d)
         cls = super(MetaClass, cls).__new__(cls, n, b, d)
-        setattr(cls, '_DOMD', MetaData(cls, n, b, d, MetaClass.data))
+        meta.post_new(cls, MetaClass.data)
         return cls
 

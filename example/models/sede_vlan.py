@@ -27,6 +27,9 @@ class Sede_Vlan_Vlans(DJModel):
     class Meta:
         app_label = 'example'
 
+    class DOMD:
+        summary = 'numero, nombre, rango, dhcp_relay'.split(', ')
+
 
 class Sede_Vlan_Switches(DJModel):
 
@@ -50,3 +53,5 @@ class Sede_Vlan_Switches(DJModel):
     class Meta:
         app_label = 'example'
 
+    class DOMD:
+        summary = 'ip, accesos, uplinks'.split(', ')

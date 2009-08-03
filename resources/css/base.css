@@ -30,13 +30,15 @@ DIV.itemlist {
 TABLE.itemlist {
  table-layout:fixed;
  width: 100%;
+ margin: 0;
 }
 
 .itemhead {
- background-color: #DDEEDD;
+ background-color: white;
  padding: 0;
  margin: 0;
- border: none;
+ font-weight: normal;
+ color: black;
 }
 
 #customer {
@@ -69,7 +71,8 @@ DIV.leftbar {
  width: 15%;
  padding: 0;
  margin: 0;
- border: no;
+ margin-top: 2px;
+ border: 2px none;
 }
 
 #leftbar ul {
@@ -81,14 +84,27 @@ DIV.leftbar {
 #leftbar li {
  font-style: italic;
  padding: 2px;
+ border: 1px;
 }
 
 #leftbar a {
  font-style: normal;
 }
 
+#leftbar h1 {
+ background-color: #304080;
+ color: white;
+ font-weight: bold;
+ font-style: normal;
+ font-size: medium;
+ border: 0;
+ margin: 0;
+ padding: 1px;
+ text-align: center;
+}
+
 .odd {
- background-color: #F0F0F0;
+ background-color: #E0E0E0;
 }
 
 .even {
@@ -98,8 +114,10 @@ DIV.leftbar {
 .breadcrumbs {
  padding: 5px;
  margin: 0px;
- background-color: #EEEEFF;
+ background-color: #9B0100;
+ color: white;
  text-align: left;
+ font-size: medium;
 }
 
 .breadcrumbs ul {
@@ -111,4 +129,8 @@ DIV.leftbar {
 .breadcrumbs li {
  display: inline;
  padding-right: 10px;
+}
+
+.breadcrumbs a {
+ color: white;
 }

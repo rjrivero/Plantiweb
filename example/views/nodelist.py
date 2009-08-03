@@ -12,14 +12,14 @@ from example.models import *
 
 def nodelist(request, path="", id=None, attr=""):
     item  = MetaClass.data
-    root  = MetaClass.data._type
+    root  = MetaClass.root
     steps = [x for x in path.split('/') if x]
     try:
         for step in steps:
             root = root._DOMD.children[step]
     except (KeyError, AttributeError):
         raise Http404
-    if not (root is MetaClass.data._type):
+    if not (root is MetaClass.root):
         item = get_object_or_404(root, pk=id)
     # generamos los "breadcrumbs" que nos traen hasta aqui
     crumbs = []
@@ -33,19 +33,17 @@ def nodelist(request, path="", id=None, attr=""):
     crumbs.append((None, None, brattr))
     crumbs = reversed(crumbs)
     # preparamos el contexto
-    data, fieldset = None, None
-    if attr:
-        data = getattr(item, attr)
+    data = None if not attr else getattr(item, attr)
     subpath = '/'.join((path, attr))
     return render_to_response('nodelist.html', {
         'customer': 'Demo',
         'provider': 'NextiraOne',
-        'data_list': data,
         'path': path,
         'subpath': subpath,
-        'attr': attr,
         'parent': item,
         'parent_meta': root._DOMD,
+        'attr': attr,
+        'data': data,
         'data_meta': data._type._DOMD,
         'crumbs': crumbs
     })

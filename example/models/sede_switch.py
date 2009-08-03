@@ -32,3 +32,5 @@ class Sede_Switch_Puertos(DJModel):
     class Meta:
         app_label = 'example'
 
+    class DOMD:
+        summary = 'interfaces, medio, velocidad, modo'.split(', ')

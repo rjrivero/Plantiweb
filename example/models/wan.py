@@ -50,3 +50,5 @@ class WANs(DJModel):
     class Meta:
         app_label = 'example'
 
+    class DOMD:
+        summary = 'vlan, descripcion, sede_origen, sede_destino'.split(', ')

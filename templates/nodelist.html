@@ -22,27 +22,28 @@
      {% endif %}
      </li>
     {% endfor %}
+  <li>:</li><li>{{ attr|upper }}</li>
   </ul>
 </div>
 
 <div class="itemlist">
-{% if not data_FieldSet %}
+{% if not data_meta %}
   <span class="emptylist">Por favor, seleccione una tabla</span>
 {% else %}
   {% load attrib %}
   <table class="itemlist">
   <thead>
     <tr class="itemhead">
-    {% for name, val in data_FieldSet %}
-      <th class="scope="col">{{ name|capfirst }}</th>
+    {% for name in data_meta.summary %}
+      <th scope="col">{{ name|capfirst }}</th>
     {% endfor %}
     </tr>
   </thead>
   <!--{% cycle "even" "odd" as tdcolor %}-->
   <tbody>
-    {% for item in data_list %}
+    {% for item in data %}
       <tr class="{% cycle tdcolor %}">
-      {% for name, val in data_FieldSet %}
+      {% for name in data_meta.summary %}
         <td>{{ item|getattr:name }}</td>
       <!--<td><a class="nodelink" href="{% url example.views.node path=subpath,id=item.pk %}">{{ item }}</a></td>-->
       {% endfor %}
@@ -55,9 +56,10 @@
 
 <!-- Barra lateral - datos del objeto -->
 <div id="leftbar" class="leftbar">
+  <h1 class="barheader">Sub-listas</h1>
   <ul>
     <!--{% cycle "even" "odd" as licolor %}-->
-    {% for name, value in parent_Subtypes %}
+    {% for name in parent_meta.children %}
       {%ifequal name attr %}
         <li class="{% cycle licolor %}">{{ name|capfirst }}</li>
       {% else %}
