@@ -16,7 +16,7 @@ def nodelist(request, path="", id=None, attr=""):
     steps = [x for x in path.split('/') if x]
     try:
         for step in steps:
-            root = root._Properties[step]._type
+            root = root._DOMD.children[step]
     except (KeyError, AttributeError):
         raise Http404
     if not (root is MetaClass.data._type):
@@ -36,9 +36,7 @@ def nodelist(request, path="", id=None, attr=""):
     data, fieldset = None, None
     if attr:
         data = getattr(item, attr)
-        fieldset = data._type._FieldSet
     subpath = '/'.join((path, attr))
-    subtypes = (x for x in item._type._Properties.items() if hasattr(x[1], '_type'))
     return render_to_response('nodelist.html', {
         'customer': 'Demo',
         'provider': 'NextiraOne',
@@ -47,8 +45,8 @@ def nodelist(request, path="", id=None, attr=""):
         'subpath': subpath,
         'attr': attr,
         'parent': item,
-        'parent_Subtypes': subtypes,
-        'data_FieldSet': fieldset,
+        'parent_meta': root._DOMD,
+        'data_meta': data._type._DOMD,
         'crumbs': crumbs
     })
 
