@@ -2,13 +2,13 @@
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 
+from gettext import gettext as _
 from django.db import models
 
 from plantillator.djread.djdata import *
 from ..meta import MetaClass
 
-
-class Areas(DJModel):
+class Areas(object):
 
     __metaclass__ = MetaClass
 
@@ -32,7 +32,7 @@ class Areas(DJModel):
         summary = 'numero, nombre, descripcion, tipo, rango'.split(', ')
 
 
-class Sedes(DJModel):
+class Sedes(object):
 
     __metaclass__ = MetaClass
 
