@@ -2,43 +2,19 @@ body {
  font-family: Verdana, Arial, Helvetica, sans-serif;
  font-size: medium;
  font-weight: normal;
-}
-
-.sqllog {
- color: #666666;
- font-size: small;
+ margin: 8em 0 0 0;
 }
 
 DIV.header {
- background-color: white;
- padding: 10px;
- border: solid 1px black;
- text-align: right;
-}
-
-.itemlist{
- padding: 0;
- margin: 0;
- border: none;
-}
-
-DIV.itemlist {
- float: right;
- width: 85%
-}
-
-TABLE.itemlist {
- table-layout:fixed;
+ position: fixed;
  width: 100%;
+ height: 5em;
  margin: 0;
-}
-
-.itemhead {
+ padding: 10px;
+ text-align: right;
+ top: 0;
+ left: 0;
  background-color: white;
- padding: 0;
- margin: 0;
- font-weight: normal;
- color: black;
 }
 
 #customer {
@@ -51,15 +27,16 @@ TABLE.itemlist {
 }
 
 #provider {
- font-size: large;
- font-weight: normal;
- font-style: italic;
- color: #333366;
+ margin-right: 20px;
 }
 
 a:link, a:visited {
  text-decoration: none;
  font-color: black;
+}
+.sqllog {
+ color: #666666;
+ font-size: small;
 }
 
 a:hover {
@@ -67,70 +44,6 @@ a:hover {
  font-color: blue;
 }
 
-DIV.leftbar {
- width: 15%;
- padding: 0;
- margin: 0;
- margin-top: 2px;
- border: 2px none;
-}
-
-#leftbar ul {
- list-style: none;
- margin: 0px;
- padding: 0px;
-}
-
-#leftbar li {
- font-style: italic;
- padding: 2px;
- border: 1px;
-}
-
-#leftbar a {
- font-style: normal;
-}
-
-#leftbar h1 {
- background-color: #304080;
- color: white;
- font-weight: bold;
- font-style: normal;
- font-size: medium;
- border: 0;
- margin: 0;
- padding: 1px;
- text-align: center;
-}
-
 .odd {
  background-color: #E0E0E0;
-}
-
-.even {
- background-color: #F9F9F9;
-}
-
-.breadcrumbs {
- padding: 5px;
- margin: 0px;
- background-color: #9B0100;
- color: white;
- text-align: left;
- font-size: medium;
-}
-
-.breadcrumbs ul {
- list-style: none;
- padding: 0;
- margin: 0;
-}
-
-.breadcrumbs li {
- display: inline;
- padding-right: 10px;
-}
-
-.breadcrumbs a {
- color: white;
 }

@@ -34,6 +34,18 @@ def nodelist(request, path="", id=None, attr=""):
     crumbs = reversed(crumbs)
     # preparamos el contexto
     data = None if not attr else getattr(item, attr)
+    if data:
+        # HACK
+        class tmp(object):
+            def __init__(self, data):
+                self.data = data
+                self._type = data._type
+            def __iter__(self):
+                for x in self.data:
+                    yield x
+                for x in range(0, 100):
+                    yield None
+        data = tmp(data)
     subpath = '/'.join((path, attr))
     return render_to_response('nodelist.html', {
         'customer': 'Demo',

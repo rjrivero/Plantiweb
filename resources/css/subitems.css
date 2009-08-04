@@ -1,0 +1,49 @@
+#subitems {
+ position: fixed;
+ width: 100%;
+ height: 1.5em;
+ top: 6.5em;
+ left: 0;
+ padding: 0;
+ margin: 0;
+ color: #3040A0;
+ background-color: white;
+ text-align: right;
+ border: 1px solid #3040A0;
+}
+
+.selected {
+ font-weight: bold;
+}
+
+#subitems ul {
+ list-style: none;
+ display: inline;
+ margin: 0;
+ margin: auto;
+ border: none;
+ vertical-align: middle;
+}
+
+#subitems li {
+ padding: 0;
+ margin-right: 10px;
+ margin-left: 10px;
+ display: inline;
+}
+
+#subitems a:link {
+ font-style: normal;
+ color: #3040A0;
+}
+
+#subitems a:visited {
+ font-style: normal;
+ color: #3040A0;
+}
+
+#subitems a:hover {
+ text-decoration: underline;
+ font-style: normal;
+ color: #3040A0;
+}

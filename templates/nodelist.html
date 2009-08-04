@@ -5,12 +5,15 @@
 {% block stylesheets %}
 {{ block.super }}
 <link rel="stylesheet" href="/resources/css/nodelist.css" type="text/css">
+<link rel="stylesheet" href="/resources/css/brcrumbs.css" type="text/css">
+<link rel="stylesheet" href="/resources/css/subitems.css" type="text/css">
+<link rel="stylesheet" href="/resources/css/itemtable.css" type="text/css">
 {% endblock %}
 
 {% block base_body %}
 
 <!-- Barra superior - bradcrumbs -->
-<div id="breadcrumbs" class="breadcrumbs">
+<div id="breadcrumbs">
   <ul>
     {% for brpath, britem, brattr in crumbs %}
      <li>&gt;</li>
@@ -26,12 +29,31 @@
   </ul>
 </div>
 
-<div class="itemlist">
+<!-- Barra siguiente - datos del objeto -->
+<div id="subitems">
+  <ul>
+    {% for name in parent_meta.children %}
+      {%ifequal name attr %}
+        <li><span class="selected">&lt; {{ name|capfirst }} &gt;</span></li>
+      {% else %}
+        <li>
+          {% if path %}
+            <a href="{% url listview path=path,id=parent.pk,attr=name %}">{{ name|capfirst }}</a>
+          {% else %}
+            <a href="{% url rootview attr=name %}">{{ name|capfirst }}</a>
+          {%endif %}
+        </li>
+      {% endifequal %}
+    {% endfor %}
+  </ul>
+</div>
+
+<div id="itemtable">
 {% if not data_meta %}
   <span class="emptylist">Por favor, seleccione una tabla</span>
 {% else %}
   {% load attrib %}
-  <table class="itemlist">
+  <table>
   <thead>
     <tr class="itemhead">
     {% for name in data_meta.summary %}
@@ -45,34 +67,13 @@
       <tr class="{% cycle tdcolor %}">
       {% for name in data_meta.summary %}
         <td>{{ item|getattr:name }}</td>
-      <!--<td><a class="nodelink" href="{% url example.views.node path=subpath,id=item.pk %}">{{ item }}</a></td>-->
+      <!--<td><a class="nodelink" href=" url example.views.node path=subpath,id=item.pk ">{{ item }}</a></td>-->
       {% endfor %}
       </tr>
     {% endfor %}
   </tbody>
   </table>
 {% endif %}
-</div>
-
-<!-- Barra lateral - datos del objeto -->
-<div id="leftbar" class="leftbar">
-  <h1 class="barheader">Sub-listas</h1>
-  <ul>
-    <!--{% cycle "even" "odd" as licolor %}-->
-    {% for name in parent_meta.children %}
-      {%ifequal name attr %}
-        <li class="{% cycle licolor %}">{{ name|capfirst }}</li>
-      {% else %}
-        <li class="{% cycle licolor %}">
-          {% if path %}
-            <a href="{% url listview path=path,id=parent.pk,attr=name %}">{{ name|capfirst }}</a>
-          {% else %}
-            <a href="{% url rootview attr=name %}">{{ name|capfirst }}</a>
-          {%endif %}
-        </li>
-      {% endifequal %}
-    {% endfor %}
-  </ul>
 </div>
 
 {% endblock %}
