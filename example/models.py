@@ -3,6 +3,7 @@
 
 
 from gettext import gettext as _
+from itertools import chain
 import copy
 from django.db import models
 from django.core.management import sql, color
@@ -22,6 +23,11 @@ def model_sql(model, known=None):
     style = color.no_style()
     return connection.creation.sql_create_model(model, style, known)[0]
 
+def field_sql(model, field):
+    model = model_create('test', model._meta.app_label, model.__module__,
+                {self.name: self.field})
+    return model_sql(model)[0].split("\n")[1].strip()[:-1]
+
 
 class ModelDescriptor(object):
 
@@ -31,57 +37,29 @@ class ModelDescriptor(object):
         self.app_label = app_label
         self.module = module
 
-    def model_create(self, instance):
+    def model_create(self, obj):
         """Crea el modelo asociado a una instancia"""
-        attrs = dict((f.name, f.field) for f in instance.field_set.all())
-        if instance.parent:
-            parent_model = self.get_model(instance.parent)
+        attrs = dict((f.name, f.field) for f in obj.field_set.all())
+        attrs.update(dict((f.name, f.field) for f in obj.dynamic_set.all()))
+        attrs.update(dict((f.name, f.field) for f in obj.link_set.all()))
+        if obj.parent:
+            parent_model = self.model_get(obj.parent)
             attrs['_up'] = models.ForeignKey(parent_model)
-        return model_create(instance.name, self.app_label, self.module, attrs)
+        return model_create(obj.modelname, self.app_label, self.module, attrs)
+
+    def model_get(self, obj):
+        try:
+            model = self.models[obj.pk]
+        except KeyError:
+            model = self.model_create(obj)
+            self.models[obj.pk] = model
+        return model
 
     def __get__(self, instance, owner):
         """Obtiene el modelo asociado a una instancia"""
         if not instance:
             raise AttributeError(_("modelo"))
-        try:
-            model = self.models[instance.pk]
-        except KeyError:
-            model = self.model_create(instance)
-            self.models[instance.pk] = model
-        return model
-
-
-class FieldDescriptor(object):
-
-    @staticmethod
-    def choices():
-        return ( 
-            ('CharField',      _('texto')),
-            ('IntegerField',   _('numero')),
-            ('IPAddressField', _('IP')),
-            ('Related',        _('enlace'))
-        )
-
-    def _CharField(self, instance):
-        return models.CharField(max_length=instance.len,
-                                blank=instance.null, null=instance.null)
-
-    def _IntegerField(self, instance):
-        return models.IntegerField()
-
-    def _IPAddressField(self, instance):
-        return models.IPAddressField()
-
-    def _Related(self, instance):
-        other = copy.copy(instance.related)
-        other.null = instance.null
-        return other.field
-
-    def __get__(self, instance, owner):
-        if not instance:
-            raise AttributeError('field')
-        func = getattr(self, '_%s' % instance.kind)
-        return func(instance)
+       	return self.model_get(instance)
 
 
 class Table(models.Model):
@@ -95,49 +73,114 @@ class Table(models.Model):
     # que puedan establecer el app_name y el module
     # model = ModelDescriptor('app_name', 'module')
 
-    def known(self):
+    def path(self):
         if not self.parent:
-            return set()
-        known = self.parent.known()
-        known.add(self.parent.model)
-        return known
+            return (self,)
+        return chain(self.parent.path(), (self,))
+
+    @property
+    def modelname(self):
+        return '_'.join(str(x.name).capitalize() for x in self.path())
+
+    @property
+    def fullname(self):
+        return u".".join(x.name for x in self.path())
 
     def sql(self):
-       return model_sql(self.model, self.known())
-
-    def __unicode__(self):
-        if self.parent:
-            return u".".join(unicode(self.parent), self.name)
-        return self.name
+       return model_sql(self.model, set(self.path()))
 
     model = ModelDescriptor('example', __name__)
 
+    def __unicode__(self):
+        return self.fullname
 
-class Field(models.Model):
+    class Meta:
+        verbose_name = _('Tabla')
+        verbose_name_plural = _('Tablas')
 
-    # no se puede tener una relacion con una clas abstracta
+
+class BaseField(models.Model):
+
     table   = models.ForeignKey(Table, verbose_name=_('tabla'))
     name    = models.CharField(max_length=16, verbose_name=_('nombre'))
-    kind    = models.CharField(max_length=32, verbose_name=_('tipo'),
-                choices=FieldDescriptor.choices())
     null    = models.BooleanField(verbose_name=_('NULL'))
-    comment = models.TextField(blank=True, verbose_name=_('comentario'))
-    # solo para los campos de tipo Dynamic
-    code    = models.TextField(verbose_name=_('codigo'), blank=True, null=True)
-    # solo para los campos tipo CharField
-    len     = models.IntegerField(verbose_name=_('longitud'))
-    # solo para los campos tipo Related
-    related = models.ForeignKey('self', verbose_name=_('ligado a'),
-                blank=True, null=True)
+    comment = models.CharField(max_length=254, blank=True,
+                               verbose_name=_('comentario'))
 
     def sql(self):
-        meta  = self.table.model._meta
-        model = model_create('test', meta.app_label, meta.__module__,
-                    {self.name: self.field})
-        return model_sql(model)[0].split("\n")[1].strip()[:-1]
+        return field_sql(self.table.model, self.field)
+
+    class Meta:
+        abstract = True
 
     def __unicode__(self):
         return unicode(_("<%s> %s") % (unicode(self.table), self.name))
 
-    field = FieldDescriptor()
+
+class TypedField(BaseField):
+
+    def CharField(self):
+        return models.CharField(max_length=self.len,
+                                blank=self.null, null=self.null)
+
+    def IntegerField(self):
+        return models.IntegerField(blank=self.null, null=self.null)
+
+    def IPAddressField(self):
+        return models.IPAddressField(blank=self.null, null=self.null)
+    
+    @property
+    def field(self):
+        return getattr(self, str(self.kind))()
+
+    # no se puede tener una relacion con una clas abstracta
+    kind    = models.CharField(max_length=32, verbose_name=_('tipo'),
+                  choices=(
+                      ('CharField',      _('texto')),
+                      ('IntegerField',   _('numero')),
+                      ('IPAddressField', _('IP')),
+                ))
+
+    # solo para los campos tipo CharField
+    len     = models.IntegerField(verbose_name=_('longitud'),
+                                  blank=True, null=True)
+
+    class Meta:
+        abstract = True
+
+
+class Field(TypedField):
+
+    class Meta:
+        verbose_name = _('Campo de datos')
+        verbose_name_plural = _('Campos de datos')
+
+
+class Dynamic(TypedField):
+
+    # solo para los campos de tipo Dynamic
+    code = models.TextField(verbose_name=_('codigo'))
+
+    class Meta:
+        verbose_name = _('Campo dinamico')
+        verbose_name_plural = _('Campos dinamicos')
+
+
+class Link(BaseField):
+
+    # solo para los campos tipo Related
+    related = models.ForeignKey(Field, verbose_name=_('ligado a'),
+                blank=True, null=True)
+
+    filter  = models.TextField(verbose_name=_('filtro'))
+
+    @property
+    def field(self):
+        other = copy.copy(self.related)
+        other.null = instance.null
+        return other.field
+
+    class Meta:
+        verbose_name = _('Campo de enlace')
+        verbose_name_plural = _('Campos de enlace')
 
