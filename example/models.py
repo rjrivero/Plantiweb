@@ -5,12 +5,13 @@
 from gettext import gettext as _
 from itertools import chain
 import copy
-from django.db import models
+
+from django.db import models, transaction, connection
 from django.core.management import sql, color
-from django.db import connection
 
 
-def model_create(name, app_label, module, attrs=None):
+def create_model(name, app_label, module, attrs=None):
+    """Crea un modelo sin base de datos detras"""
     class Meta:
         pass
     setattr(Meta, 'app_label', app_label)
@@ -19,14 +20,35 @@ def model_create(name, app_label, module, attrs=None):
     return type(str(name), (models.Model,), attrs)
 
 
-def model_sql(model, known=None):
+def sql_model(model, known=None):
+    """Genera el codigo SQL necesario para crear la tabla de un modelo"""
     style = color.no_style()
-    return connection.creation.sql_create_model(model, style, known)[0]
+    return connection.creation.sql_create_model(model, style, known)[0][0]
 
-def field_sql(model, field):
-    model = model_create('test', model._meta.app_label, model.__module__,
+
+def sql_field(model, field):
+    """Genera el codigo SQL necesario para crear un campo de una tabla"""
+    model = create_model('test', model._meta.app_label, model.__module__,
                 {self.name: self.field})
-    return model_sql(model)[0].split("\n")[1].strip()[:-1]
+    return sql_model(model)[0].split("\n")[1].strip()[:-1]
+
+
+def delete_table(model):
+    """Borra una tabla de la base de datos"""
+    sql = "DROP TABLE '%s'" % str(model._meta.db_table)
+    connection.cursor().execute(sql)
+
+
+def update_table(old_instance, old_model, current_instance):
+    """Actualiza o elimina una tabla de la base de datos"""
+    if not old_instance:
+        sql = current_instance.sql()
+        connection.cursor().execute(sql)
+    elif old_instance.name != current_instance.name:
+        sql = ("ALTER TABLE %s RENAME TO %s" %
+                  (old_model._meta.db_table,
+                   current_instance.model._meta.db_table))
+        connection.cursor().execute(sql)
 
 
 class ModelDescriptor(object):
@@ -37,29 +59,50 @@ class ModelDescriptor(object):
         self.app_label = app_label
         self.module = module
 
-    def model_create(self, obj):
+    def get_model(self, obj):
+        """Recupera o crea un modelo"""
+        try:
+            model = self.models[obj.pk]
+        except KeyError:
+            model = self.models.setdefault(obj.pk, self.create_model(obj))
+        return model
+
+    def create_model(self, obj):
         """Crea el modelo asociado a una instancia"""
         attrs = dict((f.name, f.field) for f in obj.field_set.all())
         attrs.update(dict((f.name, f.field) for f in obj.dynamic_set.all()))
         attrs.update(dict((f.name, f.field) for f in obj.link_set.all()))
         if obj.parent:
-            parent_model = self.model_get(obj.parent)
+            parent_model = obj.parent.model
             attrs['_up'] = models.ForeignKey(parent_model)
-        return model_create(obj.modelname, self.app_label, self.module, attrs)
+        return create_model(obj.modelname, self.app_label, self.module, attrs)
 
-    def model_get(self, obj):
-        try:
-            model = self.models[obj.pk]
-        except KeyError:
-            model = self.model_create(obj)
-            self.models[obj.pk] = model
-        return model
+    def remove_model(self, instance):
+        """Desvincula un modelo que va a ser modificado"""
+        for obj in Table.objects.filter(parent=instance.pk):
+            self.remove_model(obj)
+        for field in Link.objects.filter(related__table=instance.pk):
+            self.remove_model(field.table)
+        del(self.models[instance.pk])
 
     def __get__(self, instance, owner):
-        """Obtiene el modelo asociado a una instancia"""
-        if not instance:
-            raise AttributeError(_("modelo"))
-       	return self.model_get(instance)
+        """Recupera o crea un modelo"""
+        if not owner:
+            raise AttributeError(_('modelo'))
+        return self.get_model(instance)
+
+    def __set__(self, instance, value=None):
+        """Actualiza un modelo"""
+        if instance.pk:
+            old_instance = Table.objects.get(pk=instance.pk)
+            old_model = self.get_model(old_instance)
+            self.remove_model(instance)
+        else:
+            old_model = old_instance = None
+        if not value:
+            delete_table(old_model)
+        else:
+            update_table(old_instance, old_model, instance)
 
 
 class Table(models.Model):
@@ -68,10 +111,6 @@ class Table(models.Model):
                 blank=True, null=True)
     name    = models.CharField(max_length=16, verbose_name=_('nombre'))
     comment = models.TextField(blank=True, verbose_name=_('comentario'))
-
-    # No lo hago porque eso lo dejo para clases derivadas
-    # que puedan establecer el app_name y el module
-    # model = ModelDescriptor('app_name', 'module')
 
     def path(self):
         if not self.parent:
@@ -86,10 +125,10 @@ class Table(models.Model):
     def fullname(self):
         return u".".join(x.name for x in self.path())
 
-    def sql(self):
-       return model_sql(self.model, set(self.path()))
-
     model = ModelDescriptor('example', __name__)
+    
+    def sql(self):
+       return sql_model(self.model, set(self.path()))
 
     def __unicode__(self):
         return self.fullname
@@ -97,6 +136,18 @@ class Table(models.Model):
     class Meta:
         verbose_name = _('Tabla')
         verbose_name_plural = _('Tablas')
+
+    @transaction.commit_on_success
+    def save(self, *arg, **kw):
+        # tengo que hacer el cambio antes de actualizar la bd, porque
+        # en otro caso, no tendria disponible el antiguo valor.
+        self.model = self
+        super(Table, self).save(*arg, **kw)
+
+    @transaction.commit_on_success
+    def delete(self, *arg, **kw):
+        self.model = None
+        super(Table, self).delete(*arg, **kw)
 
 
 class BaseField(models.Model):
@@ -115,6 +166,16 @@ class BaseField(models.Model):
 
     def __unicode__(self):
         return unicode(_("<%s> %s") % (unicode(self.table), self.name))
+
+    @transaction.commit_on_success
+    def save(self, *arg, **kw):
+        super(Table, self).save(*arg, **kw)
+        print "Salvando tabla!"
+
+    @transaction.commit_on_success
+    def delete(self, *arg, **kw):
+        super(Table, self).delete(*arg, **kw)
+        print "Borrando tabla!"
 
 
 class TypedField(BaseField):

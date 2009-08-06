@@ -11,7 +11,7 @@ class FieldInline(admin.TabularInline):
 
 class TableAdmin(admin.ModelAdmin):
     list_display = ['fullname', 'name', 'parent']
-    fields  = ['name', 'parent']
+    fields  = ['name', 'parent', 'comment']
     inlines = [FieldInline]
     ordering = ['parent']
 
