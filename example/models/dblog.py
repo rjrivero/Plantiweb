@@ -31,6 +31,7 @@ class RevisionLog(models.Model):
         verbose_name = _('revision')
         verbose_name_plural = _('revisiones')
         app_label = app_label
+        unique_together = ['major', 'minor', 'rev']
 
     def __unicode__(self):
         return u"%d.%d.%d [%s] (%s)" % (self.major, self.minor, self.rev,

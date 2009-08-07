@@ -42,12 +42,12 @@ class BoundedIntegerField(models.PositiveIntegerField):
 
     def to_python(self, value):
         value = super(BoundedIntegerField, self).to_python(value)
-        if value is None or value < self.lower or value > self.upper:
+        if value is not None and (value < self.lower or value > self.upper):
             raise ValueError(value)
         return value
  
     def get_db_prep_save(self, value):
-        if value is None or value < self.lower or value > self.upper:
+        if value is not None and (value < self.lower or value > self.upper):
             raise ValueError(value)
         return super(BoundedIntegerField, self).get_db_prep_save(value)
 
@@ -87,7 +87,10 @@ class ModelDescriptor(object):
             self.remove_model(obj)
         #for field in Link.objects.filter(related__table=instance.pk):
         #    self.remove_model(field.table)
-        del(self.models[instance.pk])
+        try:
+            del(self.models[instance.pk])
+        except KeyError:
+            pass
 
     def __get__(self, instance, owner):
         """Recupera o crea un modelo"""

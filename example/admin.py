@@ -10,15 +10,21 @@ class FieldInline(admin.TabularInline):
     extra = 4
 
 
+class LinkInline(admin.TabularInline):
+    model = Link
+    extra = 1
+
+
 class TableAdmin(admin.ModelAdmin):
     list_display = ['fullname', 'name', 'parent']
     fields  = ['name', 'parent', 'comment']
-    inlines = [FieldInline]
+    inlines = [FieldInline, LinkInline]
     ordering = ['parent']
 
 
 class LinkAdmin(admin.ModelAdmin):
     list_display = ['table', 'name', 'related', 'null']
+    fields = ['table', 'name', 'comment', 'null', 'related', 'filter']
     ordering = ['table']
 
 

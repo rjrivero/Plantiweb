@@ -94,14 +94,14 @@ class Link(BaseField):
     related = models.ForeignKey(Field, verbose_name=_('ligado a'),
                 blank=True, null=True)
 
-    filter  = models.TextField(verbose_name=_('filtro'))
+    filter  = models.CharField(max_length=1024, verbose_name=_('filtro'))
 
     objects = CatchManager()
 
     @property
     def field(self):
         other = copy.copy(self.related)
-        other.null = instance.null
+        other.null = self.null
         return other.field
 
     class Meta:

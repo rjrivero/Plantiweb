@@ -26,7 +26,11 @@ def create_model(name, app_label, module, attrs=None):
 def sql_model(model, known=None):
     """Genera el codigo SQL necesario para crear la tabla de un modelo"""
     style = color.no_style()
-    return connection.creation.sql_create_model(model, style, known)[0][0]
+    sql, deps = connection.creation.sql_create_model(model, style, known)
+    print "sql recibido: %s" % str(sql)
+    print "dummy recibido: %s" % str(deps)
+    print ("fk: %s" % str(connection.creation.sql_indexes_for_model(model, style)))
+    return sql[0]
 
 
 def sql_field(model, name, field):
