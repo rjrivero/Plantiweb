@@ -26,21 +26,23 @@ def sql_model(model, known=None):
     return connection.creation.sql_create_model(model, style, known)[0][0]
 
 
-def sql_field(model, field):
+def sql_field(model, name, field):
     """Genera el codigo SQL necesario para crear un campo de una tabla"""
     model = create_model('test', model._meta.app_label, model.__module__,
-                {self.name: self.field})
-    return sql_model(model)[0].split("\n")[1].strip()[:-1]
+                {name: field})
+    sql   = sql_model(model).split("\n")[2].strip()
+    print "SQL DEL CAMPO: %s" % sql
+    return sql
 
 
 def delete_table(model):
     """Borra una tabla de la base de datos"""
-    sql = "DROP TABLE '%s'" % str(model._meta.db_table)
+    sql = "DROP TABLE %s" % str(model._meta.db_table)
     connection.cursor().execute(sql)
 
 
 def update_table(old_instance, old_model, current_instance):
-    """Actualiza o elimina una tabla de la base de datos"""
+    """Actualiza o modifica una tabla de la base de datos"""
     if not old_instance:
         sql = current_instance.sql()
         connection.cursor().execute(sql)
@@ -49,6 +51,32 @@ def update_table(old_instance, old_model, current_instance):
                   (old_model._meta.db_table,
                    current_instance.model._meta.db_table))
         connection.cursor().execute(sql)
+
+
+def delete_field(table, field):
+    """Borra un campo de una tabla"""
+    sql = "ALTER TABLE %s DROP COLUMN %s" % (
+          str(table.model._meta.db_table), str(field.name))
+    connection.cursor().execute(sql)
+
+
+def update_field(table, old_instance, current_instance):
+    """Actualiza o modifica un campo de una tabla de la base de datos"""
+    tnm = table.model._meta.db_table
+    sql = sql_field(current_instance.table.model,
+                    current_instance.name,
+                    current_instance.field)
+    statements = list()
+    if not old_instance:
+        statements.append("ALTER TABLE %s ADD %s" % (tnm, sql))
+    else:
+        if old_instance.name != current_instance.name:
+            statements.append("ALTER TABLE %s RENAME COLUMN %s TO %s" % (
+                tnm, old_instance.name, current_instance.name))
+        statements.append("ALTER TABLE %s MODIFY %s" % (tnm, sql))
+    cursor = connection.cursor()
+    for sql in statements:
+        cursor.execute(sql)
 
 
 class ModelDescriptor(object):
@@ -70,7 +98,6 @@ class ModelDescriptor(object):
     def create_model(self, obj):
         """Crea el modelo asociado a una instancia"""
         attrs = dict((f.name, f.field) for f in obj.field_set.all())
-        attrs.update(dict((f.name, f.field) for f in obj.dynamic_set.all()))
         attrs.update(dict((f.name, f.field) for f in obj.link_set.all()))
         if obj.parent:
             parent_model = obj.parent.model
@@ -167,29 +194,21 @@ class BaseField(models.Model):
     def __unicode__(self):
         return unicode(_("<%s> %s") % (unicode(self.table), self.name))
 
-    @transaction.commit_on_success
-    def save(self, *arg, **kw):
-        super(Table, self).save(*arg, **kw)
-        print "Salvando tabla!"
-
-    @transaction.commit_on_success
-    def delete(self, *arg, **kw):
-        super(Table, self).delete(*arg, **kw)
-        print "Borrando tabla!"
-
 
 class TypedField(BaseField):
 
     def CharField(self):
-        return models.CharField(max_length=self.len,
+        return models.CharField(max_length=self.len, default='',
                                 blank=self.null, null=self.null)
 
     def IntegerField(self):
-        return models.IntegerField(blank=self.null, null=self.null)
+        return models.IntegerField(default=0,
+                                   blank=self.null, null=self.null)
 
     def IPAddressField(self):
-        return models.IPAddressField(blank=self.null, null=self.null)
-    
+        return models.IPAddressField(default='',
+                                     blank=self.null, null=self.null)
+
     @property
     def field(self):
         return getattr(self, str(self.kind))()
@@ -209,22 +228,40 @@ class TypedField(BaseField):
     class Meta:
         abstract = True
 
+    @transaction.commit_on_success
+    def save(self, *arg, **kw):
+        old = None if not self.pk else self.__class__.objects.get(pk=self.pk)
+        if not old and not self.null:
+            # creo primero el campo como NULL, para que no se queje
+            self.null = True
+            update_field(self.table, old, self)
+            super(TypedField, self).save(*arg, **kw)
+            # preparo para reemplazar campo NOT NULL por NULL
+            old = copy.copy(self)
+            self.null = False
+            # actualizo el modeloa
+            self.table.model = self.table
+        if old and old.null and not self.null:
+            self.table.model.objects.all().update(**{str(old.name): ''})
+        update_field(self.table, old, self)
+        super(TypedField, self).save(*arg, **kw)
+        # actualizo el modelo
+        self.table.model = self.table
+
+    @transaction.commit_on_success
+    def delete(self, *arg, **kw):
+        old = self.__class__.objects.get(pk=self.pk)
+        delete_field(self.table, old) 
+        super(TypedField, self).delete(*arg, **kw)
+        # fuerzo una recarga del modelo
+        self.table.model = self.table
+
 
 class Field(TypedField):
 
     class Meta:
-        verbose_name = _('Campo de datos')
-        verbose_name_plural = _('Campos de datos')
-
-
-class Dynamic(TypedField):
-
-    # solo para los campos de tipo Dynamic
-    code = models.TextField(verbose_name=_('codigo'))
-
-    class Meta:
-        verbose_name = _('Campo dinamico')
-        verbose_name_plural = _('Campos dinamicos')
+        verbose_name = _('campo de datos')
+        verbose_name_plural = _('campos de datos')
 
 
 class Link(BaseField):
@@ -242,6 +279,34 @@ class Link(BaseField):
         return other.field
 
     class Meta:
-        verbose_name = _('Campo de enlace')
-        verbose_name_plural = _('Campos de enlace')
+        verbose_name = _('campo de enlace')
+        verbose_name_plural = _('campos de enlace')
+
+
+class Dynamic(models.Model):
+
+    # solo para los campos de tipo Dynamic
+    related = models.OneToOneField(Field, verbose_name=_('ligado a'))
+    code = models.TextField(verbose_name=_('codigo'))
+
+    class Meta:
+        verbose_name = _('campo dinamico')
+        verbose_name_plural = _('campos dinamicos')
+
+    def __unicode__(self):
+        return unicode(_('codigo de %s') % str(self.related))
+
+    @transaction.commit_on_success
+    def save(self, *arg, **kw):
+        super(Dynamic, self).save(*arg, **kw)
+        # fuerzo una recarga del modelo
+        table = self.related.table
+        table.model = table
+
+    @transaction.commit_on_success
+    def delete(self, *arg, **kw):
+        super(Dynamic, self).delete(*arg, **kw)
+        # fuerzo una recarga del modelo
+        table = self.related.table
+        table.model = table
 

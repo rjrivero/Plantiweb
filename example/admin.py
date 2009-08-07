@@ -20,8 +20,8 @@ class LinkAdmin(admin.ModelAdmin):
     ordering = ['table']
 
 class DynamicAdmin(admin.ModelAdmin):
-    list_display = ['table', 'name', 'kind','null']
-    ordering = ['table']
+    list_display = ['related', 'code']
+    ordering = ['related']
 
 
 admin.site.register(Table, TableAdmin)
