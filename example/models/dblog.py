@@ -4,6 +4,8 @@
 
 from gettext import gettext as _
 from datetime import datetime
+from cPickle import dumps
+from base64 import encodestring
 
 from django.db import models
 
@@ -15,7 +17,7 @@ class RevisionManager(models.Manager):
     def current(self):
         return self.order_by('-major', '-minor', '-rev')[0]
 
-        
+   
 class RevisionLog(models.Model):
 
     major = models.IntegerField()
@@ -55,18 +57,20 @@ class ChangeLog(models.Model):
     minor  = models.IntegerField()
     rev    = models.IntegerField()
     stamp  = models.DateTimeField(default=datetime.now)
-    change = models.TextField()
+    sql    = models.TextField()
+    params = models.CharField(max_length=240, blank=True, null=True)
 
     objects = ChangeLogManager()
 
-    def log(self, change):
-        self.change = change
+    def log(self, sql, params=None):
         current     = RevisionLog.objects.current()
         self.major  = current.major
         self.minor  = current.minor
         self.rev    = current.rev
+        self.sql    = sql
+        self.params = encodestring(dumps(params)) if params else None
         self.save()
-        return change
+        return (sql, params)
 
     class Meta:
         verbose_name = _('cambio')
@@ -76,5 +80,5 @@ class ChangeLog(models.Model):
 
     def __unicode__(self):
         return u"%d.%d.%d [%s] (%s)" % (self.major, self.minor, self.rev,
-                                        self.stamp, self.change)
+                                        self.stamp, self.sql)
 

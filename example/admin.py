@@ -38,7 +38,7 @@ class RevisionLogAdmin(admin.ModelAdmin):
 
 
 class ChangeLogAdmin(admin.ModelAdmin):
-    list_display = ['stamp', 'pk', 'major', 'minor', 'rev', 'change']
+    list_display = ['stamp', 'id', 'major', 'minor', 'rev', 'sql']
 
 
 admin.site.register(Table, TableAdmin)
