@@ -10,10 +10,29 @@ from copy import copy
 import re
 
 from django.db import models, transaction, connection
+from plantillator.data.dataobject import DataType
+from plantillator.data.dataobject import MetaData as RootMetaData
 
 from .dbraw import *
-from .dbbase import ModelDescriptor
+from .dbbase import MetaData, ModelCache
 from .dblog import app_label
+
+
+def RootType():
+    """Crea un nuevo objeto raiz (parent == None)"""
+    rootmeta = RootMetaData('ROOT', None)
+    class Root(DataType(object)):
+        def __getattr__(self, attr):
+            try:
+                model   = Table.objects.get(parent=None, name=attr).model
+                objects = model.objects.all()
+            except Table.DoesNotExist:
+                raise AttributeError(attr)
+            else:
+                setattr(self, attr, objects)
+                return objects
+    rootmeta.post_new(Root)
+    return Root
 
 
 class DBIdentifierField(models.CharField):
@@ -123,7 +142,8 @@ class Table(models.Model):
         return property(**locals())
 
     # Un DataDescriptor que da acceso a la ultima version del modelo
-    current_model = ModelDescriptor('example', __name__)
+    # Un DataDescriptor que da acceso a la ultima version del modelo
+    Cache = ModelCache('example', __name__, RootType())
 
     @apply
     def model():
@@ -137,10 +157,11 @@ class Table(models.Model):
         """
         def fget(self):
             if not self._model:
-                self._model = self.current_model
+                self._model = self.Cache.get_model(self)
             return self._model
         def fset(self, val):
-            self._model = self.current_model = self.path = None
+            self.Cache.remove_model(self)
+            self._model = self.path = None
         return property(**locals())
 
     @property
@@ -207,6 +228,10 @@ class BaseField(models.Model):
 
     class Meta:
         abstract = True
+
+    def _db_name(self):
+        """Devuelve el nombre que tendra el campo en el modelo"""
+        return self.name
 
     def _get_links(self):
         """Devuelvo una lista de todos los "Links" relacionados con este campo"""
@@ -283,6 +308,18 @@ class Field(BaseField):
     def default(self):
         return FIELDS[self.kind].default
 
+    def _dynamic_name(self, dynamic=False):
+        """Devuelve el nombre normal, o el dinamico"""
+        return str(self.name) if not dynamic else ('_%s' % str(self.name))
+
+    def _db_name(self):
+        """Modifica el nombre si tenemos asociado codigo dinamico"""
+        try:
+            dynamic = self.dynamic
+        except Dynamic.DoesNotExist:
+            dynamic = None
+        return self._dynamic_name(dynamic)
+
     class Meta:
         verbose_name = _('campo de datos')
         verbose_name_plural = _('campos de datos')
@@ -344,6 +381,10 @@ class Dynamic(models.Model):
 
     @transaction.commit_on_success
     def save(self, *arg, **kw):
+        if not self.pk:
+            # todavia no habia aplicado codigo dinamico al campo:
+            # lo actualizo.
+            update_dynamic(self.related, True)
         super(Dynamic, self).save(*arg, **kw)
         # fuerzo una recarga del modelo
         self.related.table.model = None
@@ -351,6 +392,8 @@ class Dynamic(models.Model):
     @transaction.commit_on_success
     def delete(self, *arg, **kw):
         super(Dynamic, self).delete(*arg, **kw)
+        # cambio el nombre del campo
+        update_dynamic(self.related, False)
         # fuerzo una recarga del modelo
         self.related.table.model = None
 

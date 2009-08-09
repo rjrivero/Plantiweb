@@ -12,7 +12,7 @@ from django.db.models.loading import cache
 from .dblog import ChangeLog
 
 
-def create_model(name, app_label, module, attrs=None):
+def create_model(name, app_label, module, attrs=None, bases=(models.Model,)):
     """Crea un modelo dinamicamente"""
     class Meta:
         pass
@@ -34,7 +34,7 @@ def create_model(name, app_label, module, attrs=None):
     except KeyError:
         pass
     # Ahora ya puedo crear el modelo
-    return type(name, (models.Model,), attrs)
+    return type(name, bases, attrs)
 
 
 def sql_add_model(model, known=None):
@@ -89,7 +89,7 @@ def sql_inline_field(model, name, field):
     # El campo que creamos esta en la segunda linea del SQL (la primera es el
     # CREATE TABLA, la segunda la clave primaria)
     testtype = create_model("test", model._meta.app_label, model.__module__,
-                {str(name): field})
+                {name: field})
     return sql_add_model(testtype)[0].split("\n")[2].strip()
 
 
@@ -104,7 +104,7 @@ def sql_add_field(model, name, field):
 
 def sql_drop_field(model, name):
     """Genera el codigo SQL para eliminar un campo de una tabla"""
-    return ["ALTER TABLE %s DROP %s" % (model._meta.db_table, str(name))]
+    return ["ALTER TABLE %s DROP %s" % (model._meta.db_table, name)]
 
 
 def sql_rename_model(old_model, new_model):
@@ -117,10 +117,11 @@ def sql_rename_model(old_model, new_model):
     return statements
 
 
-def sql_rename_field(model, old_name, new_name):
+def sql_rename_field(model, old_name, new_name, field):
     """Genera el codigo SQL para renombrar un campo de una tabla"""
-    old, new = str(old_name), str(new_name)
-    return ["ALTER TABLE %s RENAME COLUMN %s TO %s" % (old, new)]
+    tname, old, new = model._meta.db_table, old_name, new_name
+    sql = sql_inline_field(model, new_name, field)
+    return ["ALTER TABLE %s CHANGE COLUMN %s %s" % (tname, old, sql)]
 
 
 def sql_modify_field(model, name, field):
@@ -131,8 +132,8 @@ def sql_modify_field(model, name, field):
 
 def sql_update_null(model, name, field, defval):
     """Genera el codigo SQL para actualizar los elementos NULL de un campo"""
-    table, name = model._meta.db_table, str(name)
     clean = [field.get_db_prep_value(defval)]
+    table = model._meta.db_table
     return [("UPDATE %s SET %s=%%s WHERE %s IS NULL" % (table, name, name), clean)]
 
 
@@ -146,8 +147,8 @@ def execute(query_list):
         sql, params = query, None
         if hasattr(query, '__iter__'):
             sql, params = query
-        ChangeLog().log(sql, params)
-        cursor.execute(sql, params or dict())
+        # al salvar, tambien se ejecuta la query
+        ChangeLog(cursor=cursor, sql=sql, params=params).save()
 
 
 def delete_table(instance):
@@ -199,7 +200,7 @@ def update_table(old_instance, cur_instance, recurring=False):
 def delete_field(table, field):
     """Borra un campo de una tabla"""
     try:
-        execute(sql_drop_field(table.model, field.name))
+        execute(sql_drop_field(table.model, field._db_name()))
     except Exception:
         pass
 
@@ -209,26 +210,26 @@ def update_field(table, old_instance, current_instance):
     model, old, new = table.model, old_instance, current_instance
     if not old:
         if new.null:
-            statements = sql_add_field(model, new.name, new.field)
+            statements = sql_add_field(model, new._db_name(), new.field)
         else:
             # La base de datos se puede quejar de que agreguemos un campo not null
             # sin especificar default en una tabla existente.
             # Por eso, creamos el campo como NULL y luego lo modificamos.
             old = copy(new)
             old.null = True
-            statements = sql_add_field(model, old.name, old.field)
-            name, field = new.name, new.field
+            statements = sql_add_field(model, old._db_name(), old.field)
+            name, field = new._db_name(), new.field
             statements.extend(sql_update_null(model, name, field, new.default))
             statements.extend(sql_modify_field(model, name, field))
     else:
-        name, field = new.name, new.field
+        old_name, name, field = old._db_name(), new._db_name(), new.field
         statements = list()
         # si cambia la tabla, mal rollo -> lanzamos ValueError
         if old.table != new.table:
             raise ValueError(_('No esta permitido cambiar la tabla'))
         # si cambia el nombre, rename previo
-        if old.name != name:
-            statements.extend(sql_rename_field(model, old.name, name))
+        if old_name != name:
+            statements.extend(sql_rename_field(model, old_name, name, field))
         # si cambia el valor de null, nos aseguramos de que no hay valores null
         if old.null and not new.null:
             statements.extend(sql_update_null(model, name, field, new.default))
@@ -237,4 +238,10 @@ def update_field(table, old_instance, current_instance):
         if new.index != old.index and new.index:
             statements.extend(sql_add_index(model, name, field))
     execute(statements)
+
+
+def update_dynamic(field, dynamic):
+    old_name = field._dynamic_name(not dynamic)
+    new_name = field._dynamic_name(dynamic)
+    execute(sql_rename_field(field.table.model, old_name, new_name, field.field))
 

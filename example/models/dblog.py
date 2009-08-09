@@ -2,12 +2,14 @@
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 from gettext import gettext as _
 from datetime import datetime
-from cPickle import dumps
-from base64 import encodestring
 
-from django.db import models
+from django.db import models, connection
 
 app_label = 'example'
 
@@ -17,7 +19,7 @@ class RevisionManager(models.Manager):
     def current(self):
         return self.order_by('-major', '-minor', '-rev')[0]
 
-   
+
 class RevisionLog(models.Model):
 
     major = models.IntegerField()
@@ -40,6 +42,49 @@ class RevisionLog(models.Model):
                                         self.stamp, self.summary)
 
 
+class PickledObject(str):
+
+    """A subclass of string so it can be told whether a string is
+       a pickled object or not (if the object is an instance of this class
+       then it must [well, should] be a pickled one)."""
+
+    pass
+
+
+class PickledObjectField(models.Field):
+
+    __metaclass__ = models.SubfieldBase
+
+    def to_python(self, value):
+        if isinstance(value, PickledObject):
+            return pickle.loads(str(value))
+        else:
+            try:
+                return pickle.loads(str(value))
+            except:
+                return value
+
+    def get_db_prep_save(self, value):
+        if value is not None and not isinstance(value, PickledObject):
+            value = PickledObject(pickle.dumps(value))
+        return value
+
+    def get_internal_type(self): 
+        return 'TextField'
+
+    def get_db_prep_lookup(self, lookup_type, value):
+        if lookup_type == 'exact':
+            value = self.get_db_prep_save(value)
+            return super(PickledObjectField, self).get_db_prep_lookup(
+                       lookup_type, value)
+        elif lookup_type == 'in':
+            value = [self.get_db_prep_save(v) for v in value]
+            return super(PickledObjectField, self).get_db_prep_lookup(
+                       lookup_type, value)
+        else:
+            raise TypeError('Lookup type %s is not supported.' % lookup_type)
+
+
 class ChangeLogManager(models.Manager):
 
     def current(self):
@@ -53,24 +98,30 @@ class ChangeLogManager(models.Manager):
 
 class ChangeLog(models.Model):
 
-    major  = models.IntegerField()
-    minor  = models.IntegerField()
-    rev    = models.IntegerField()
+    major  = models.IntegerField(blank=True)
+    minor  = models.IntegerField(blank=True)
+    rev    = models.IntegerField(blank=True)
     stamp  = models.DateTimeField(default=datetime.now)
     sql    = models.TextField()
-    params = models.CharField(max_length=240, blank=True, null=True)
+    params = PickledObjectField(blank=True, null=True)
 
     objects = ChangeLogManager()
 
-    def log(self, sql, params=None):
+    def __init__(self, *arg, **kw):
+        try:
+            self.cursor = kw.pop('cursor')
+        except KeyError:
+            self.cursor = None
+        super(ChangeLog, self).__init__(*arg, **kw)
+
+    def save(self):
         current     = RevisionLog.objects.current()
         self.major  = current.major
         self.minor  = current.minor
         self.rev    = current.rev
-        self.sql    = sql
-        self.params = encodestring(dumps(params)) if params else None
-        self.save()
-        return (sql, params)
+        super(ChangeLog, self).save()
+        cursor = self.cursor or connection.cursor()
+        cursor.execute(self.sql, self.params or tuple())
 
     class Meta:
         verbose_name = _('cambio')

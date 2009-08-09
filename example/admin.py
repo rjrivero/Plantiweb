@@ -35,10 +35,12 @@ class DynamicAdmin(admin.ModelAdmin):
 
 class RevisionLogAdmin(admin.ModelAdmin):
     list_display = ['stamp', 'major', 'minor', 'rev', 'summary']
+    list_filter = ['stamp']
 
 
 class ChangeLogAdmin(admin.ModelAdmin):
     list_display = ['stamp', 'id', 'major', 'minor', 'rev', 'sql']
+    list_filter = ['stamp']
 
 
 admin.site.register(Table, TableAdmin)
