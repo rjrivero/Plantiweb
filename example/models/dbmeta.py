@@ -104,24 +104,54 @@ class Table(models.Model):
     name    = DBIdentifierField(verbose_name=_('nombre'))
     comment = models.TextField(blank=True, verbose_name=_('comentario'))
 
-    def path(self):
-        """Lista de ancestros de la tabla, incluyendose a si misma"""
-        if not self.parent:
-            return (self,)
-        return chain(self.parent.path(), (self,))
+    def __init__(self, *arg, **kw):
+        super(Table, self).__init__(*arg, **kw)
+        self._path = self._model = None
+
+    @apply
+    def path():
+        def fget(self):
+            """Lista de ancestros que se incluye a si mismo"""
+            if not self._path:
+                if not self.parent:
+                    self._path = (self,)
+                else:
+                    self._path = tuple(chain(self.parent.path, (self,)))
+            return self._path
+        def fset(self, val):
+            self._path = None
+        return property(**locals())
+
+    # Un DataDescriptor que da acceso a la ultima version del modelo
+    current_model = ModelDescriptor('example', __name__)
+
+    @apply
+    def model():
+        """Acceso a la version cacheada del modelo
+
+        Cuando se crea la instancia del objeto, o se salvan cambios, se crea
+        una version cacheada del objeto.
+
+        Si se desea limpiar la cache, basta con asignarle el valor "NULL" a
+        la propiedad model.
+        """
+        def fget(self):
+            if not self._model:
+                self._model = self.current_model
+            return self._model
+        def fset(self, val):
+            self._model = self.current_model = self.path = None
+        return property(**locals())
 
     @property
     def modelname(self):
         """Nombre para el modelo"""
-        return '_'.join(str(x.name) for x in self.path())
+        return '_'.join(str(x.name) for x in self.path)
 
     @property
     def fullname(self):
         """Nombre descriptivo completo"""
-        return u".".join(x.name for x in self.path())
-
-    # Un DataDescriptor que da acceso al modelo
-    model = ModelDescriptor('example', __name__)
+        return u".".join(x.name for x in self.path)
 
     class Meta:
         verbose_name = _('Tabla')
@@ -131,25 +161,23 @@ class Table(models.Model):
     @transaction.commit_on_success
     def save(self, *arg, **kw):
         # Obtengo el valor antiguo, antes de salvar y de limpiar cache
-        old_instance = old_model = None
+        old_instance, old_model = None, None
         if self.pk:
             old_instance = Table.objects.get(pk=self.pk)
-            old_model = old_instance.model
+            model = old_instance.model
         # Salvo los datos antes de crear la tabla, para forzar la validacion
         super(Table, self).save(*arg, **kw)
-        # borro la cache de modelos
+        # Me aseguro de que se actualice la version mas reciente de la tabla
         self.model = None
-        update_table(old_instance, old_model, self)
+        update_table(old_instance, self)
 
     @transaction.commit_on_success
     def delete(self, *arg, **kw):
-        # me guardo una copia del modelo para poder borrar los datos
-        model = self.model
         # borro tabla y datos
         super(Table, self).delete(*arg, **kw)
-        delete_table(self.model)
-        # limpio cache de modelos
+        # me aseguro de que estoy borrando la version mas reciente de la tabla
         self.model = None
+        delete_table(self)
 
     def __unicode__(self):
         return self.fullname
@@ -195,7 +223,6 @@ class BaseField(models.Model):
                     changed = True
                     break
         # Salvo los cambios antes de modificar, para forzar la validacion.
-        model = self.table.model # cacheo el modelo pre-cambios
         super(BaseField, self).save(*arg, **kw)
         if changed:
             update_field(self.table, old, self)
@@ -212,7 +239,7 @@ class BaseField(models.Model):
         super(BaseField, self).delete(*arg, **kw)
         delete_field(self.table, old) 
         # fuerzo una recarga del modelo
-        self.table.model = self.table
+        self.table.model = None
 
     def __unicode__(self):
         return unicode(_("<%s> %s") % (unicode(self.table), self.name))
