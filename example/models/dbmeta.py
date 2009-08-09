@@ -155,22 +155,34 @@ class Table(models.Model):
         return self.fullname
 
 
+NO_INDEX       = 0
+UNIQUE_INDEX   = 1
+MULTIPLE_INDEX = 2
+
 class BaseField(models.Model):
 
     """Modelo de campo comun para Field y Link"""
 
     name    = DBIdentifierField(verbose_name=_('nombre'))
     null    = models.BooleanField(verbose_name=_('NULL'))
-    index   = models.BooleanField(verbose_name=_('INDEX'), default=False)
+    index   = models.IntegerField(verbose_name=_('INDEX'), choices=(
+                      (NO_INDEX,       _('sin indice')),
+                      (UNIQUE_INDEX,   _('unico')),
+                      (MULTIPLE_INDEX, _('multiple')),
+                  ), default=NO_INDEX)
     comment = models.CharField(max_length=254, blank=True,
                                verbose_name=_('comentario'))
 
     # Campos que provocan cambios en las tablas generadas
-    # posiblemente todos menos "comment"
+    # (todos menos "comment")
     METAFIELDS = ['name', 'null', 'index']
 
     class Meta:
         abstract = True
+
+    def _get_links(self):
+        """Devuelvo una lista de todos los "Links" relacionados con este campo"""
+        return tuple()
 
     @transaction.commit_on_success
     def save(self, *arg, **kw):
@@ -187,6 +199,10 @@ class BaseField(models.Model):
         super(BaseField, self).save(*arg, **kw)
         if changed:
             update_field(self.table, old, self)
+            for link in self._get_links():
+                # actualizo tambien los campos que cogen su tipo de este
+                update_field(link.table, link.wrap(old), link)
+                link.table.model = None
         # actualizo el modelo
         self.table.model = None
 
@@ -231,8 +247,9 @@ class Field(BaseField):
         attrs = FIELDS[self.kind]
         ftype = attrs.field
         fparm = dict((x, getattr(self, y)) for x, y in attrs.params.iteritems())
-        fparm['db_index'] = self.index
         fparm['blank'] = fparm['null'] = self.null
+        fparm['db_index'] = (self.index == MULTIPLE_INDEX)
+        fparm['unique'] = (self.index == UNIQUE_INDEX)
         return ftype(**fparm)
 
     @property
@@ -243,6 +260,10 @@ class Field(BaseField):
         verbose_name = _('campo de datos')
         verbose_name_plural = _('campos de datos')
         app_label = app_label
+
+    def _get_links(self):
+        """Devuelvo una lista de todos los "Links" relacionados con este campo"""
+        return Link.objects.filter(related=self.pk)
 
 
 class Link(BaseField):
@@ -258,14 +279,22 @@ class Link(BaseField):
     # Campos que provocan cambios en las tablas generadas
     METAFIELDS = list(chain(BaseField.METAFIELDS, ['table', 'related']))
 
-    @property
-    def field(self):
-        other = copy(self.related)
+    def wrap(self, field):
+        """Devuelve un campo actualizado con los atributos definidos en el link"""
+        other = copy(field)
         other.table = self.table
         other.name = self.name
         other.null = self.null
         other.index = self.index
-        return other.field
+        return other
+
+    @property
+    def field(self):
+        return self.wrap(self.related).field
+
+    @property
+    def default(self):
+        return FIELDS[self.related.kind].default
 
     class Meta:
         verbose_name = _('campo de enlace')

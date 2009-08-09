@@ -6,11 +6,13 @@ from copy import copy
 
 from django.db import models, connection
 from django.core.management import sql, color
+# HACKISH - HACKISH - HACKISH
+from django.db.models.loading import cache
 
 from .dblog import ChangeLog
 
 
-def create_model(name, app_label, module, attrs=None, counter=[0]):
+def create_model(name, app_label, module, attrs=None):
     """Crea un modelo dinamicamente"""
     class Meta:
         pass
@@ -18,13 +20,21 @@ def create_model(name, app_label, module, attrs=None, counter=[0]):
     setattr(Meta, 'db_table', '%s_%s' % (app_label, name))
     attrs = attrs or dict()
     attrs.update({'Meta': Meta, '__module__': module})
-    # El typename cambia cada vez que recargamos el modelo, porque
-    # si no, el mecanismo de cache de Django hace que no se refresquen
-    # los cambios.
-    current = (counter[0] + 1) % 1024
-    counter[0] = current
-    typename = "%s_%d_%d" % (str(name), ChangeLog.objects.current().pk, current)
-    return type(typename, (models.Model,), attrs)
+    # HACKISH - HACKISH - HACKISH
+    #
+    # Django guarda una cache de modelos, y cuando se intenta crear uno que ya
+    # esta en cache, en vez de actualizar la cache con el modelo nuevo, devuelve
+    # el modelo antiguo.
+    #
+    # Esto es muy malo para nuestros propositos, asi que a continuacion pongo
+    # un hack que elimina el modelo de la cache, si existia
+    app_cache = cache.app_models.get(app_label, dict())
+    try:
+        del(app_cache[name.lower()])
+    except KeyError:
+        pass
+    # Ahora ya puedo crear el modelo
+    return type(name, (models.Model,), attrs)
 
 
 def sql_add_model(model, known=None):
@@ -75,9 +85,9 @@ def sql_add_index(model, name, field):
 
 def sql_inline_field(model, name, field):
     """Genera el codigo SQL necesario para definir un campo"""
-    # El typename cambia cada vez que recargamos el modelo, porque
-    # si no, el mecanismo de cache de Django hace que no se refresquen
-    # los cambios.
+    # HACKISH
+    # El campo que creamos esta en la segunda linea del SQL (la primera es el
+    # CREATE TABLA, la segunda la clave primaria)
     testtype = create_model("test", model._meta.app_label, model.__module__,
                 {str(name): field})
     return sql_add_model(testtype)[0].split("\n")[2].strip()
@@ -100,7 +110,10 @@ def sql_drop_field(model, name):
 def sql_rename_model(old_model, new_model):
     """Genera el codigo SQL para renombrar una tabla"""
     old, new = old_model._meta.db_table, new_model._meta.db_table
-    return ["ALTER TABLE %s RENAME TO %s" % (old, new)]
+    statements = sql_drop_foreign_key(old_model)
+    statements.append("ALTER TABLE %s RENAME TO %s" % (old, new))
+    statements.extend(sql_add_foreign_key(new_model))
+    return statements
 
 
 def sql_rename_field(model, old_name, new_name):
@@ -147,26 +160,23 @@ def update_table(old_instance, old_model, cur_instance):
         statements = sql_add_model(cur_instance.model)
     else:
         statements = list()
-        # si cambia la tabla padre, hay que eliminar las referencias
-        # antiguas y crear nuevas
+        # si cambia la tabla padre, o cambia el nombre de la tabla, hay que
+        # eliminar las foriegn keys antiguas y recrearlas, porque django le pone
+        # a cada CONSTRAINT un sufijo que depende del nombre del modelo, y si
+        # lo cambiamos sin alterar las referencias, le perderiamos la pista.
         op = old_instance.parent.pk if old_instance.parent else None 
         np = cur_instance.parent.pk if cur_instance.parent else None
-        rc = connection.creation.sql_remove_table_constraints
-        if op != np:
-            print "REPARENTANDO! de %s A %s" % (op, np)
+        if op != np or old_instance.name != cur_instance.name:
             if op is not None: 
-                print "borrando claves primarias"
-                statements.extend(sql_drop_foreign_key(old_model))
+                #print "borrando claves primarias"
+                #statements.extend(sql_drop_foreign_key(old_model))
                 old_instance.parent.model = None
             statements.extend(sql_rename_model(old_model, cur_instance.model))
             if np is not None:
-                print "agregando nuevas claves foreign"
-                statements.extend(sql_add_foreign_key(cur_instance.model))
+                #print "agregando nuevas claves foreign"
+                #statements.extend(sql_add_foreign_key(cur_instance.model))
                 cur_instance.parent.model = None
                 cur_instance.model = None
-        # si cambia el nombre, hacemos un RENAME
-        if old_instance.name != cur_instance.name:
-            statements.extend(sql_rename_model(old_model, cur_instance.model))
     execute(statements)
 
 
@@ -208,7 +218,7 @@ def update_field(table, old_instance, current_instance):
             statements.extend(sql_update_null(model, name, field, new.default))
         statements.extend(sql_modify_field(model, name, field))
         # si el campo ha adquirido un indice, lo indexo
-        if new.index and not old.index:
+        if new.index != old.index and new.index:
             statements.extend(sql_add_index(model, name, field))
     execute(statements)
 
