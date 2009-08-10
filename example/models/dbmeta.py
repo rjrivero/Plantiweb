@@ -326,8 +326,16 @@ class Field(BaseField):
         app_label = app_label
 
     def _get_links(self):
-        """Devuelvo una lista de todos los "Links" relacionados con este campo"""
+        """Devuelvo una lista de todos los "Links" relacionados con el campo"""
         return Link.objects.filter(related=self.pk)
+
+    def save(self):
+        """Compruebo que estan definidos los campos adicionales del tipo"""
+        field = FIELDS[self.kind]
+        for param, attr in field.params.iteritems():
+            if not getattr(self, attr):
+                raise ValueError(_("El campo %s no puede estar vacio!" % attr))
+        super(Field, self).save()
 
 
 class Link(BaseField):

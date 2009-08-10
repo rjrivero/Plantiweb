@@ -12,7 +12,7 @@ class FieldInline(admin.TabularInline):
 
 class LinkInline(admin.TabularInline):
     model = Link
-    extra = 1
+    extra = 2
 
 
 class TableAdmin(admin.ModelAdmin):
@@ -22,10 +22,10 @@ class TableAdmin(admin.ModelAdmin):
     ordering = ['parent']
 
 
-class LinkAdmin(admin.ModelAdmin):
-    list_display = ['table', 'name', 'related', 'null']
-    fields = ['table', 'name', 'comment', 'null', 'related', 'filter']
-    ordering = ['table']
+#class LinkAdmin(admin.ModelAdmin):
+#    list_display = ['table', 'name', 'related', 'null']
+#    fields = ['table', 'name', 'comment', 'null', 'related', 'filter']
+#    ordering = ['table']
 
 
 class DynamicAdmin(admin.ModelAdmin):
@@ -44,7 +44,7 @@ class ChangeLogAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Table, TableAdmin)
-admin.site.register(Link, LinkAdmin)
+#admin.site.register(Link, LinkAdmin)
 admin.site.register(Dynamic, DynamicAdmin)
 admin.site.register(RevisionLog, RevisionLogAdmin)
 admin.site.register(ChangeLog, ChangeLogAdmin)

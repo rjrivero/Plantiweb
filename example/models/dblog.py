@@ -91,8 +91,8 @@ class ChangeLogManager(models.Manager):
         try:
             return self.order_by('-id')[0]
         except IndexError:
-            c = ChangeLog()
-            c.log(_('Cambio inicial'))
+            c = ChangeLog(sql="SELECT 'Cambio inicial'")
+            c.save()
             return c
 
 
