@@ -204,10 +204,6 @@ class Table(models.Model):
         return self.fullname
 
 
-NO_INDEX       = 0
-UNIQUE_INDEX   = 1
-MULTIPLE_INDEX = 2
-
 class BaseField(models.Model):
 
     """Modelo de campo comun para Field y Link"""
@@ -300,8 +296,11 @@ class Field(BaseField):
         ftype = attrs.field
         fparm = dict((x, getattr(self, y)) for x, y in attrs.params.iteritems())
         fparm['blank'] = fparm['null'] = self.null
-        fparm['db_index'] = (self.index == MULTIPLE_INDEX)
-        fparm['unique'] = (self.index == UNIQUE_INDEX)
+        # No utilizo los mecanismos de django para crear indices, sino que
+        # uso directamente la base de datos. Esto es porque django no ofrece
+        # facilidades para borrar los indices una vez creados.
+        #fparm['db_index'] = (self.index == MULTIPLE_INDEX)
+        #fparm['unique'] = (self.index == UNIQUE_INDEX)
         return ftype(**fparm)
 
     @property
@@ -324,6 +323,7 @@ class Field(BaseField):
         verbose_name = _('campo de datos')
         verbose_name_plural = _('campos de datos')
         app_label = app_label
+        unique_together = ('table', 'name')
 
     def _get_links(self):
         """Devuelvo una lista de todos los "Links" relacionados con el campo"""
@@ -372,6 +372,7 @@ class Link(BaseField):
         verbose_name = _('campo de enlace')
         verbose_name_plural = _('campos de enlace')
         app_label = app_label
+        unique_together = ('table', 'name')
 
 
 class Dynamic(models.Model):

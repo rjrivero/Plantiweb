@@ -12,6 +12,12 @@ from django.db.models.loading import cache
 from .dblog import ChangeLog
 
 
+# Posibles tipos de indice
+NO_INDEX       = 0
+UNIQUE_INDEX   = 1
+MULTIPLE_INDEX = 2
+
+
 def create_model(name, app_label, module, attrs=None, bases=(models.Model,)):
     """Crea un modelo dinamicamente"""
     class Meta:
@@ -77,17 +83,11 @@ def sql_drop_foreign_key(model):
     return sql
 
 
-def sql_add_index(model, name, field):
-    """Genera el codigo SQL para indexar un campo"""
-    style, c = color.no_style(), connection.creation
-    return c.sql_indexes_for_field(model, field, style)
-
-
 def sql_inline_field(model, name, field):
     """Genera el codigo SQL necesario para definir un campo"""
     # HACKISH
     # El campo que creamos esta en la segunda linea del SQL (la primera es el
-    # CREATE TABLA, la segunda la clave primaria)
+    # CREATE TABLE, la segunda la clave primaria)
     testtype = create_model("test", model._meta.app_label, model.__module__,
                 {name: field})
     return sql_add_model(testtype)[0].split("\n")[2].strip()
@@ -97,8 +97,9 @@ def sql_add_field(model, name, field):
     """Genera el codigo SQL para agregar un campo a una tabla"""
     inline = sql_inline_field(model, name, field)
     sql = ["ALTER TABLE %s ADD %s" % (model._meta.db_table, inline)]
-    if field.db_index:
-        sql.extend(sql_add_index(model, name, field))
+    # Ya no gestionamos los indices con django, sino con SQL.
+    #if field.db_index:
+    #    sql.extend(sql_add_index(model, name, field))
     return sql
 
 
@@ -124,6 +125,28 @@ def sql_rename_field(model, old_name, new_name, field):
     return ["ALTER TABLE %s CHANGE COLUMN %s %s" % (tname, old, sql)]
 
 
+def sql_add_index(model, name, idxname):
+    """Genera el codigo SQL para indexar un campo"""
+    #style, c = color.no_style(), connection.creation
+    #return c.sql_indexes_for_field(model, field, style)
+    table = model._meta.db_table
+    return ["ALTER TABLE %s ADD INDEX %s (%s)" % (
+                table, idxname, name)]
+
+
+def sql_drop_index(model, name, idxname):
+    """Genera el codigo SQL para indexar un campo"""
+    table = model._meta.db_table
+    return ["ALTER TABLE %s DROP INDEX %s" % (
+                table, idxname)]
+
+
+def sql_add_unique(model, name, idxname):
+    table = model._meta.db_table
+    return ["ALTER TABLE %s ADD UNIQUE INDEX %s (%s)" % (
+                table, idxname, name)]
+
+
 def sql_modify_field(model, name, field):
     """Genera el codigo SQL para modificar un campo de una tabla"""
     inline = sql_inline_field(model, name, field)
@@ -135,6 +158,7 @@ def sql_update_null(model, name, field, defval):
     clean = [field.get_db_prep_value(defval)]
     table = model._meta.db_table
     return [("UPDATE %s SET %s=%%s WHERE %s IS NULL" % (table, name, name), clean)]
+
 
 
 def execute(query_list):
@@ -207,26 +231,32 @@ def delete_field(table, field):
 
 def update_field(table, old_instance, current_instance):
     """Actualiza o modifica un campo de una tabla de la base de datos"""
-    model, old, new = table.model, old_instance, current_instance
+    old, new = old_instance, current_instance
+    idxname = "idx%d" % new.pk
+    model, name = table.model, new._db_name()
     if not old:
         if new.null:
-            statements = sql_add_field(model, new._db_name(), new.field)
+            statements = sql_add_field(model, name, new.field)
         else:
             # La base de datos se puede quejar de que agreguemos un campo not null
             # sin especificar default en una tabla existente.
             # Por eso, creamos el campo como NULL y luego lo modificamos.
-            old = copy(new)
-            old.null = True
-            statements = sql_add_field(model, old._db_name(), old.field)
-            name, field = new._db_name(), new.field
-            statements.extend(sql_update_null(model, name, field, new.default))
+            fakeold = copy(new) # no usar "old", porque si no
+            fakeold.null = True # no se crean los indices
+            fakename, fakefield = fakeold._db_name(), fakeold.field
+            statements = sql_add_field(model, fakename, fakefield)
+            field, default = new.field, new.default
+            statements.extend(sql_update_null(model, name, field, default))
             statements.extend(sql_modify_field(model, name, field))
     else:
-        old_name, name, field = old._db_name(), new._db_name(), new.field
+        old_name, field = old._db_name(), new.field
         statements = list()
         # si cambia la tabla, mal rollo -> lanzamos ValueError
         if old.table != new.table:
             raise ValueError(_('No esta permitido cambiar la tabla'))
+        # si se elimina la restriccion de unico, quito el indice.
+        if old.index != new.index and old.index:
+            statements.extend(sql_drop_index(model, old_name, idxname))
         # si cambia el nombre, rename previo
         if old_name != name:
             statements.extend(sql_rename_field(model, old_name, name, field))
@@ -234,9 +264,14 @@ def update_field(table, old_instance, current_instance):
         if old.null and not new.null:
             statements.extend(sql_update_null(model, name, field, new.default))
         statements.extend(sql_modify_field(model, name, field))
-        # si el campo ha adquirido un indice, lo indexo
-        if new.index != old.index and new.index:
-            statements.extend(sql_add_index(model, name, field))
+    # si el campo ha adquirido un indice, lo indexo
+    if not old or old.index != new.index:
+        # usar un nombre de indice no ligado al nombre del campo permite
+        # que no haya que cambiarlo si se renombra el mismo.
+        if new.index == UNIQUE_INDEX:
+           statements.extend(sql_add_unique(model, name, idxname))
+        elif new.index == MULTIPLE_INDEX:
+           statements.extend(sql_add_index(model, name, idxname))
     execute(statements)
 
 
