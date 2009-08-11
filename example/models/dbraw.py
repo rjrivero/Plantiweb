@@ -47,39 +47,28 @@ def sql_add_model(model, known=None):
     """Genera el codigo SQL necesario para crear la tabla de un modelo"""
     style, c = color.no_style(), connection.creation
     sql, deps = c.sql_create_model(model, style, known)
-    sql.extend(c.sql_indexes_for_model(model, style))
-    for model in deps.keys():
-        sql.extend(c.sql_for_pending_references(model, style, deps))
     return sql
 
 
-def sql_add_foreign_key(model, known=None):
+def sql_add_foreign_key(model, pk, parent_model):
     """Genera el codigo SQL para las FK de un modelo"""
-    style, c = color.no_style(), connection.creation
-    dummy, deps = c.sql_create_model(model, style, known)
-    sql = list()
-    for model in deps.keys():
-        sql.extend(c.sql_for_pending_references(model, style, deps))
+    tname, pname = model._meta.db_table, parent_model._meta.db_table
+    sql = ["ALTER TABLE %s ADD INDEX idx_up_id (_up_id)" % tname]
+    sql.append("ALTER TABLE %s ADD CONSTRAINT fk_up_id_%d FOREIGN KEY idx_up_id (_up_id) REFERENCES %s (_id)" % (tname, pk, pname))
     return sql
 
 
 def sql_drop_model(model):
     """Genera el codigo SQL para eliminar un modelo"""
-    style, c = color.no_style(), connection.creation
-    refs = dict()
-    for field in (f for f in model._meta.local_fields if f.rel):
-        refs.setdefault(field.rel.to, []).append((model, field))
+    style, c, refs = color.no_style(), connection.creation, dict()
     return c.sql_destroy_model(model, refs, style)
 
 
-def sql_drop_foreign_key(model):
+def sql_drop_foreign_key(pk, model):
     """Genera el codigo SQL para eliminar las FK de un modelo"""
-    style,c = color.no_style(), connection.creation
-    sql, refs = list(), dict()
-    for field in (f for f in model._meta.local_fields if f.rel):
-        refs.setdefault(field.rel.to, []).append((model, field))
-    for model in refs.keys():
-        sql.extend(c.sql_remove_table_constraints(model, refs, style))
+    tname = model._meta.db_table
+    sql = ["ALTER TABLE %s DROP FOREIGN KEY fk_up_id_%d" % (tname, pk)]
+    sql.append("ALTER TABLE %s DROP INDEX idx_up_id" % tname)
     return sql
 
 
@@ -111,11 +100,9 @@ def sql_drop_field(model, name):
 def sql_rename_model(old_model, new_model):
     """Genera el codigo SQL para renombrar una tabla"""
     old, new = old_model._meta.db_table, new_model._meta.db_table
-    statements = sql_drop_foreign_key(old_model)
     if old != new:
-        statements.append("ALTER TABLE %s RENAME TO %s" % (old, new))
-    statements.extend(sql_add_foreign_key(new_model))
-    return statements
+        return ["ALTER TABLE %s RENAME TO %s" % (old, new)]
+    return tuple()
 
 
 def sql_rename_field(model, old_name, new_name, field):
@@ -175,50 +162,59 @@ def execute(query_list):
         ChangeLog(cursor=cursor, sql=sql, params=params).save()
 
 
-def delete_table(instance):
+def delete_table(instance, pk, model):
     """Borra una tabla de la base de datos"""
-    execute(sql_drop_model(instance.model))
+    statements = list()
+    if instance.parent:
+        statements.extend(sql_drop_foreign_key(pk, model))
+    for child in instance.table_set.all():
+        child.delete()
+    statements.extend(sql_drop_model(model))
+    execute(statements)
 
 
-def update_table(old_instance, cur_instance, recurring=False):
+def update_table(old_instance, old_model, cur_instance):
     """Actualiza o modifica una tabla de la base de datos"""
+    statements = list()
     if not old_instance:
-        statements = sql_add_model(cur_instance.model)
+        known = list(x.model for x in cur_instance.path)
+        oldm, newm = old_model, cur_instance.model
+        statements.extend(sql_add_model(newm, known))
+        if cur_instance.parent:
+            model, pmodel = cur_instance.model, cur_instance.parent.model
+            pk = cur_instance.pk
+            statements.extend(sql_add_foreign_key(model, pk, pmodel))
     else:
-        statements = list()
-        # si cambia la tabla padre, o cambia el nombre de la tabla, hay que
-        # eliminar las foreign keys antiguas y recrearlas, porque django le pone
-        # a cada CONSTRAINT un sufijo que depende del nombre del modelo, y si
-        # lo cambiamos sin alterar las referencias, le perderiamos la pista.
+        # si cambia la tabla padre hay que eliminar las foreign keys antiguas
+        # y recrearlas.
+        oldm, newm, pk = old_model, cur_instance.model, cur_instance.pk
         op = old_instance.parent.pk if old_instance.parent else None 
         np = cur_instance.parent.pk if cur_instance.parent else None
-        if recurring or op != np or old_instance.name != cur_instance.name:
-            children = list(old_instance.table_set.all())
-            for child in children:
-                # obligo a que reconstruyan el model con el parent anterior
-                child.model, child.parent = None, old_instance
-                model = child.model
-            oldm, newm = old_instance.model, cur_instance.model
+        if op != np:
             if op is None and np is not None:
                 # La tabla que se habia creado no tenia campo _up_id porque su
                 # modelo no tenia clave primaria. Tengo que modificar la tabla
                 # para gregar ese campo.
+                pmodel = cur_instance.parent.model
                 field = newm._meta.get_field('_up')
                 statements.extend(sql_add_field(oldm, '_up', field))
-            if op is not None and np is None:
+                statements.extend(sql_rename_model(oldm, newm))
+                statements.extend(sql_add_foreign_key(newm, pk, pmodel))
+            elif op is not None and np is None:
                 # La tabla tenia un parent y ahora ya no, el campo '_up'
                 # debe desaparecer
+                pk = cur_instance.pk 
+                statements.extend(sql_drop_foreign_key(pk, oldm))
                 statements.extend(sql_drop_field(oldm, '_up_id'))
+                statements.extend(sql_rename_model(oldm, newm))
+            else:
+                statements.extend(sql_drop_foreign_key(pk, oldm))
+                statements.extend(sql_rename_model(oldm, newm))
+                pmodel = cur_instance.parent.model
+                statements.extend(sql_add_foreign_key(newm, pk, pmodel))
+        else:
             statements.extend(sql_rename_model(oldm, newm))
-            # Y finalmente, actualizamos las tablas hijas
-            for old_child in children:
-                new_child = copy(old_child)
-                new_child.model, new_child.parent = None, cur_instance
-                statements.extend(update_table(old_child, new_child, True))
-    if recurring:
-        return statements
-    else:
-        execute(statements)
+    execute(statements)
 
 
 def delete_field(table, field):
@@ -238,8 +234,8 @@ def update_field(table, old_instance, current_instance):
         if new.null:
             statements = sql_add_field(model, name, new.field)
         else:
-            # La base de datos se puede quejar de que agreguemos un campo not null
-            # sin especificar default en una tabla existente.
+            # La base de datos se puede quejar de que agreguemos un campo
+            # not null sin especificar default en una tabla existente.
             # Por eso, creamos el campo como NULL y luego lo modificamos.
             fakeold = copy(new) # no usar "old", porque si no
             fakeold.null = True # no se crean los indices

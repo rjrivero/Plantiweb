@@ -119,9 +119,9 @@ class ModelCache(object):
     def get_model(self, obj):
         """Recupera o crea un modelo"""
         if not obj.pk:
-            # creo el modelo en vacio para no dejarlo luego en
-            # self.models[None], que da problemas.
-            return self.create_model(obj)
+            # Solo permitimos crear objetos ya salvados, para evitar problemas
+            # de cache y para tener el nombre de la tabla a mano.
+            raise ValueError('pk is None')
         try:
             return self.models[obj.pk]
         except KeyError:
@@ -162,7 +162,7 @@ class ModelCache(object):
         """Elimina todos los modelos anteriores a la revision actual"""
         current = ChangeLog.objects.current().pk
         invalid = set()
-        for pk, model in self.models:
+        for pk, model in self.models.iteritems():
             if model._DOMD.rev < current:
                 invalid.add(pk)
         for pk in invalid:

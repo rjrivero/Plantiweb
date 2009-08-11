@@ -39,7 +39,8 @@ class DBIdentifierField(models.CharField):
 
     """Tipo de columna que representa un nombre de tabla o campo valido
 
-    Solo se aceptan los campos que cumplan con la regexp DBIdentifierField._VALID
+    Solo se aceptan los campos que cumplan con la regexp
+    DBIdentifierField._VALID
     """
 
     _VALID = re.compile('^[a-zA-Z][\w\d_]{0,15}$')
@@ -50,14 +51,14 @@ class DBIdentifierField(models.CharField):
         super(DBIdentifierField, self).__init__(*arg, **kw)
 
     def to_python(self, value):
-        """Se asegura de que el valor es valido, en otro caso lanza ValueError"""
+        """Se asegura de que el valor es valido, o lanza ValueError"""
         value = super(DBIdentifierField, self).to_python(value)
         if value is not None and not DBIdentifierField._VALID.match(value):
             raise ValueError(value)
         return value
  
     def get_db_prep_save(self, value):
-        """Se asegura de que el valor es valido, en otro caso lanza ValueError"""
+        """Se asegura de que el valor es valido, o lanza ValueError"""
         if value is not None and not DBIdentifierField._VALID.match(value):
             raise ValueError(value)
         return super(DBIdentifierField, self).get_db_prep_save(value)
@@ -76,14 +77,14 @@ class BoundedIntegerField(models.PositiveIntegerField):
         super(BoundedIntegerField, self).__init__(*arg, **kw)
 
     def to_python(self, value):
-        """Se asegura de que el valor es valido, en otro caso lanza ValueError"""
+        """Se asegura de que el valor es valido, o lanza ValueError"""
         value = super(BoundedIntegerField, self).to_python(value)
         if value is not None and (value < self.lower or value > self.upper):
             raise ValueError(value)
         return value
  
     def get_db_prep_save(self, value):
-        """Se asegura de que el valor es valido, en otro caso lanza ValueError"""
+        """Se asegura de que el valor es valido, o lanza ValueError"""
         if value is not None and (value < self.lower or value > self.upper):
             raise ValueError(value)
         return super(BoundedIntegerField, self).get_db_prep_save(value)
@@ -125,23 +126,13 @@ class Table(models.Model):
 
     def __init__(self, *arg, **kw):
         super(Table, self).__init__(*arg, **kw)
-        self._path = self._model = None
 
-    @apply
-    def path():
-        def fget(self):
-            """Lista de ancestros que se incluye a si mismo"""
-            if not self._path:
-                if not self.parent:
-                    self._path = (self,)
-                else:
-                    self._path = tuple(chain(self.parent.path, (self,)))
-            return self._path
-        def fset(self, val):
-            self._path = None
-        return property(**locals())
+    @property
+    def path(self):
+        if not self.parent:
+            return (self,)
+        return tuple(chain(self.parent.path, (self,)))
 
-    # Un DataDescriptor que da acceso a la ultima version del modelo
     # Un DataDescriptor que da acceso a la ultima version del modelo
     Cache = ModelCache('example', __name__, RootType())
 
@@ -156,18 +147,17 @@ class Table(models.Model):
         la propiedad model.
         """
         def fget(self):
-            if not self._model:
-                self._model = self.Cache.get_model(self)
-            return self._model
+            return self.Cache.get_model(self)
         def fset(self, val):
             self.Cache.remove_model(self)
-            self._model = self.path = None
         return property(**locals())
 
     @property
     def modelname(self):
         """Nombre para el modelo"""
-        return '_'.join(str(x.name) for x in self.path)
+        if not self.pk:
+            raise ValueError, _('El modelo aun no ha sido salvado')
+        return "%s_%d" % (str(self.name), self.pk)
 
     @property
     def fullname(self):
@@ -178,6 +168,7 @@ class Table(models.Model):
         verbose_name = _('Tabla')
         verbose_name_plural = _('Tablas')
         app_label = app_label
+        unique_together = ('parent', 'name')
 
     @transaction.commit_on_success
     def save(self, *arg, **kw):
@@ -185,20 +176,21 @@ class Table(models.Model):
         old_instance, old_model = None, None
         if self.pk:
             old_instance = Table.objects.get(pk=self.pk)
-            model = old_instance.model
+            old_instance.model = None
+            old_model = old_instance.model
         # Salvo los datos antes de crear la tabla, para forzar la validacion
         super(Table, self).save(*arg, **kw)
         # Me aseguro de que se actualice la version mas reciente de la tabla
         self.model = None
-        update_table(old_instance, self)
+        update_table(old_instance, old_model, self)
 
     @transaction.commit_on_success
     def delete(self, *arg, **kw):
+        # borro antes los objetos derivados, porque una vez borrada la
+        # instancia queda en un estado bastante inconsistente.
+        delete_table(self, self.pk, self.model)
         # borro tabla y datos
         super(Table, self).delete(*arg, **kw)
-        # me aseguro de que estoy borrando la version mas reciente de la tabla
-        self.model = None
-        delete_table(self)
 
     def __unicode__(self):
         return self.fullname
@@ -268,7 +260,7 @@ class BaseField(models.Model):
 
 X = namedtuple('X', 'verbose, default, field, params')
 FIELDS = {
-    'CharField':      X('texto',  '', models.CharField,      {'max_length': 'len'}),
+    'CharField':      X('texto',  '', models.CharField, {'max_length': 'len'}),
     'IPAddressField': X('IP',     '', models.IPAddressField, {}),
     'IntegerField':   X('numero', 0,  models.IntegerField,   {}),
 }
@@ -280,8 +272,9 @@ class Field(BaseField):
     
     objects = CatchManager()
     table   = models.ForeignKey(Table)
-    kind    = models.CharField(max_length=32, verbose_name=_('tipo'), choices=list(
-                  (name, _(x.verbose)) for name, x in FIELDS.iteritems()))
+    kind    = models.CharField(max_length=32, verbose_name=_('tipo'),
+                  choices=list(
+                      (name, _(x.verbose)) for name, x in FIELDS.iteritems()))
     # solo para los campos tipo CharField
     len     = BoundedIntegerField(1, 1024, verbose_name=_('longitud'),
                   blank=True, null=True)
@@ -352,7 +345,7 @@ class Link(BaseField):
     METAFIELDS = list(chain(BaseField.METAFIELDS, ['table', 'related']))
 
     def wrap(self, field):
-        """Devuelve un campo actualizado con los atributos definidos en el link"""
+        """Devuelve un campo actualizado con los atributos del link"""
         other = copy(field)
         other.table = self.table
         other.name = self.name
