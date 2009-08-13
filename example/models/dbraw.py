@@ -53,7 +53,8 @@ def sql_add_model(model, known=None):
 def sql_add_foreign_key(model, pk, parent_model):
     """Genera el codigo SQL para las FK de un modelo"""
     tname, pname = model._meta.db_table, parent_model._meta.db_table
-    sql = ["ALTER TABLE %s ADD INDEX idx_up_id (_up_id)" % tname]
+    sql = ["UPDATE %s SET _up_id=NULL" % tname]
+    sql.append("ALTER TABLE %s ADD INDEX idx_up_id (_up_id)" % tname)
     sql.append("ALTER TABLE %s ADD CONSTRAINT fk_up_id_%d FOREIGN KEY idx_up_id (_up_id) REFERENCES %s (_id)" % (tname, pk, pname))
     return sql
 

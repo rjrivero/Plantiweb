@@ -134,7 +134,10 @@ class ModelCache(object):
         attrs.update(dict((f.name, f.field) for f in obj.link_set.all()))
         if obj.parent:
             parent_model = obj.parent.model
-            attrs['_up'] = models.ForeignKey(parent_model)
+            # la clave primaria debe permitir valores NULL para poder
+            # cambiar el parent de una tabla dinamicamente.
+            attrs['_up'] = models.ForeignKey(parent_model,
+                               blank=True, null=True)
         else:
             # si un objeto no tiene padre, arreglo la clase derivada para
             # que "up" devuelva el objeto de datos raiz.
