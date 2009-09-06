@@ -1,0 +1,48 @@
+{% extends "datanav/base.html" %}
+
+{% block title %}login{% endblock %}
+{% block description %}Inicio de sesi&oacute;n{% endblock %}
+
+{% block stylesheets %}
+{{ block.super }}
+<link rel="stylesheet" href="/resources/css/login.css" type="text/css">
+{% endblock %}
+
+{% block header %}
+<div id="header">Inicio de sesi&oacute;n requerido</div>
+{% endblock %}
+
+{% block content %}
+
+<form method="post" action="{% url django.contrib.auth.views.login %}">
+<input type="hidden" name="next" value="{{ next }}" />
+
+<div id="logindiv">
+<table id="logintable">
+<thead>
+  <tr><th colspan="2">Credenciales de usuario</th></tr>
+</thead>
+<tbody>
+<tr>
+  <th>{{ form.username.label_tag }}</th>
+  <td>{{ form.username }}</td>
+</tr>
+<tr>
+  <th>{{ form.password.label_tag }}</th>
+  <td>{{ form.password }}</td>
+</tr>
+</tbody>
+<tfoot>
+  <th>&nbsp;</th><th><input type="submit" value="login" /></th>
+</tfoot>
+</table>
+
+{% if form.errors %}
+<p class="fielderror">Nombre de usuario o clave incorrectos.</p>
+{% endif %}
+
+<div>
+
+</form>
+
+{% endblock %}

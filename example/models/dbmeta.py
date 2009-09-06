@@ -10,108 +10,11 @@ from copy import copy
 import re
 
 from django.db import models, transaction, connection
-from plantillator.data.dataobject import DataType
-from plantillator.data.dataobject import MetaData as RootMetaData
 
-from .dbraw import *
-from .dbbase import MetaData, ModelCache
 from .dblog import app_label
-
-
-def RootType():
-    """Crea un nuevo objeto raiz (parent == None)"""
-    rootmeta = RootMetaData('ROOT', None)
-    class Root(DataType(object)):
-        def __getattr__(self, attr):
-            try:
-                model   = Table.objects.get(parent=None, name=attr).model
-                objects = model.objects.all()
-            except Table.DoesNotExist:
-                raise AttributeError(attr)
-            else:
-                setattr(self, attr, objects)
-                return objects
-    rootmeta.post_new(Root)
-    return Root
-
-
-class DBIdentifierField(models.CharField):
-
-    """Tipo de columna que representa un nombre de tabla o campo valido
-
-    Solo se aceptan los campos que cumplan con la regexp
-    DBIdentifierField._VALID
-    """
-
-    _VALID = re.compile('^[a-zA-Z][\w\d_]{0,15}$')
-
-    def __init__(self, *arg, **kw):
-        """Construye el campo y limita su longitud"""
-        kw['max_length'] = 16
-        super(DBIdentifierField, self).__init__(*arg, **kw)
-
-    def to_python(self, value):
-        """Se asegura de que el valor es valido, o lanza ValueError"""
-        value = super(DBIdentifierField, self).to_python(value)
-        if value is not None and not DBIdentifierField._VALID.match(value):
-            raise ValueError(value)
-        return value
- 
-    def get_db_prep_save(self, value):
-        """Se asegura de que el valor es valido, o lanza ValueError"""
-        if value is not None and not DBIdentifierField._VALID.match(value):
-            raise ValueError(value)
-        return super(DBIdentifierField, self).get_db_prep_save(value)
-
-
-class BoundedIntegerField(models.PositiveIntegerField):
-
-    """Tipo de columna que representa un entero acotado"""
-
-    _VALID = re.compile('^[a-zA-Z][\w\d_]{0,15}$')
-
-    def __init__(self, lower, upper, *arg, **kw):
-        """Define limites inferior y superior de la cota"""
-        self.lower = lower
-        self.upper = upper
-        super(BoundedIntegerField, self).__init__(*arg, **kw)
-
-    def to_python(self, value):
-        """Se asegura de que el valor es valido, o lanza ValueError"""
-        value = super(BoundedIntegerField, self).to_python(value)
-        if value is not None and (value < self.lower or value > self.upper):
-            raise ValueError(value)
-        return value
- 
-    def get_db_prep_save(self, value):
-        """Se asegura de que el valor es valido, o lanza ValueError"""
-        if value is not None and (value < self.lower or value > self.upper):
-            raise ValueError(value)
-        return super(BoundedIntegerField, self).get_db_prep_save(value)
-
-
-class CatchQuerySet(models.query.QuerySet):
-
-    """QuerySet que intercepta la orden delete
-
-    Intercepta la orden delete para obligar a que los elementos del QuerySet
-    sean borrados uno a uno, en lugar de en batch. De esta forma, se invoca el
-    metodo "delete" de cada uno.
-    """
-
-    def delete(self):
-        # capturo la orden "delete" y la obligo a pasar uno a uno por los
-        # elementos a eliminar, para que no se salte ningun evento
-        for item in self:
-            item.delete()
-
-
-class CatchManager(models.Manager):
-
-    """Manager que devuelve QuerySets del tipo CatchQuerySet"""
-
-    def get_query_set(self):
-        return CatchQuerySet(self.model)
+from .dbbase import ModelCache
+from .dbfields import *
+from .dbraw import *
 
 
 class Table(models.Model):
@@ -133,25 +36,6 @@ class Table(models.Model):
             return (self,)
         return tuple(chain(self.parent.path, (self,)))
 
-    # Un DataDescriptor que da acceso a la ultima version del modelo
-    Cache = ModelCache('example', __name__, RootType())
-
-    @apply
-    def model():
-        """Acceso a la version cacheada del modelo
-
-        Cuando se crea la instancia del objeto, o se salvan cambios, se crea
-        una version cacheada del objeto.
-
-        Si se desea limpiar la cache, basta con asignarle el valor "NULL" a
-        la propiedad model.
-        """
-        def fget(self):
-            return self.Cache.get_model(self)
-        def fset(self, val):
-            self.Cache.remove_model(self)
-        return property(**locals())
-
     @property
     def modelname(self):
         """Nombre para el modelo"""
@@ -170,30 +54,28 @@ class Table(models.Model):
         app_label = app_label
         unique_together = ('parent', 'name')
 
+    def __unicode__(self):
+        return self.fullname
+
     @transaction.commit_on_success
-    def save(self, *arg, **kw):
-        # Obtengo el valor antiguo, antes de salvar y de limpiar cache
+    def save(self):
+        """Crea o modifica la tabla en la base de datos"""
         old_instance, old_model = None, None
         if self.pk:
             old_instance = Table.objects.get(pk=self.pk)
-            old_instance.model = None
-            old_model = old_instance.model
-        # Salvo los datos antes de crear la tabla, para forzar la validacion
-        super(Table, self).save(*arg, **kw)
-        # Me aseguro de que se actualice la version mas reciente de la tabla
-        self.model = None
-        update_table(old_instance, old_model, self)
+            old_model = Cache[old_instance]
+        super(Table, self).save()
+        if old_instance is not None:
+            Cache.invalidate(old_instance)
+        update_table(Cache, old_instance, old_model, self)
 
     @transaction.commit_on_success
-    def delete(self, *arg, **kw):
+    def delete(self):
+        """Borra las tablas"""
         # borro antes los objetos derivados, porque una vez borrada la
         # instancia queda en un estado bastante inconsistente.
-        delete_table(self, self.pk, self.model)
-        # borro tabla y datos
-        super(Table, self).delete(*arg, **kw)
-
-    def __unicode__(self):
-        return self.fullname
+        delete_table(Cache, self, self.pk, Cache[self])
+        super(Table, self).delete()
 
 
 class BaseField(models.Model):
@@ -214,48 +96,45 @@ class BaseField(models.Model):
     # (todos menos "comment")
     METAFIELDS = ['name', 'null', 'index']
 
-    class Meta:
-        abstract = True
-
     def _db_name(self):
         """Devuelve el nombre que tendra el campo en el modelo"""
         return self.name
 
     def _get_links(self):
-        """Devuelvo una lista de todos los "Links" relacionados con este campo"""
+        """Devuelvo una lista de los "Links" relacionados con el campo"""
         return tuple()
 
-    @transaction.commit_on_success
-    def save(self, *arg, **kw):
-        if not self.pk:
-            changed, old = True, None
-        else:
-            changed, old = False, self.__class__.objects.get(pk=self.pk)
-            for x in self.__class__.METAFIELDS:
-                if getattr(old, x) != getattr(self, x):
-                    changed = True
-                    break
-        # Salvo los cambios antes de modificar, para forzar la validacion.
-        super(BaseField, self).save(*arg, **kw)
-        if changed:
-            update_field(self.table, old, self)
-            for link in self._get_links():
-                # actualizo tambien los campos que cogen su tipo de este
-                update_field(link.table, link.wrap(old), link)
-                link.table.model = None
-        # actualizo el modelo
-        self.table.model = None
-
-    @transaction.commit_on_success
-    def delete(self, *arg, **kw):
-        old = self.__class__.objects.get(pk=self.pk)
-        super(BaseField, self).delete(*arg, **kw)
-        delete_field(self.table, old) 
-        # fuerzo una recarga del modelo
-        self.table.model = None
+    class Meta:
+        abstract = True
 
     def __unicode__(self):
         return unicode(_("<%s> %s") % (unicode(self.table), self.name))
+
+    @transaction.commit_on_success
+    def save(self):
+        """Modifica los campos de las tablas en la bd"""
+        sender, old, changed = self.__class__, None, True
+        if self.pk:
+            old = sender.objects.get(pk=self.pk)
+            changed = any((getattr(old, x) != getattr(self, x))
+                          for x in sender.METAFIELDS)
+        super(Basefield, self).save()
+        if changed:
+            update_field(Cache, self.table, old, self)
+            for link in self._get_links():
+                # actualizo tambien los campos que cogen su tipo de este
+                update_field(Cache, link.table, link.wrap(old), link)
+                Cache.invalidate(link.table)
+        # actualizo el modelo
+        Cache.invalidate(self.table)
+
+    @transaction.commit_on_success
+    def delete(self):
+        old = self.__class__.objects.get(pk=self.pk)
+        old_table = old.table
+        super(Basefield, self).delete()
+        delete_field(Cache, old_table, old)
+        Cache.invalidate(old_table)
 
 
 X = namedtuple('X', 'verbose, default, field, params')
@@ -287,7 +166,8 @@ class Field(BaseField):
     def field(self):
         attrs = FIELDS[self.kind]
         ftype = attrs.field
-        fparm = dict((x, getattr(self, y)) for x, y in attrs.params.iteritems())
+        fparm = dict((x, getattr(self, y))
+                     for x, y in attrs.params.iteritems())
         fparm['blank'] = fparm['null'] = self.null
         # No utilizo los mecanismos de django para crear indices, sino que
         # uso directamente la base de datos. Esto es porque django no ofrece
@@ -312,14 +192,8 @@ class Field(BaseField):
             dynamic = None
         return self._dynamic_name(dynamic)
 
-    class Meta:
-        verbose_name = _('campo de datos')
-        verbose_name_plural = _('campos de datos')
-        app_label = app_label
-        unique_together = ('table', 'name')
-
     def _get_links(self):
-        """Devuelvo una lista de todos los "Links" relacionados con el campo"""
+        """Devuelvo una lista de todos los "Links" del campo"""
         return Link.objects.filter(related=self.pk)
 
     def save(self):
@@ -327,8 +201,14 @@ class Field(BaseField):
         field = FIELDS[self.kind]
         for param, attr in field.params.iteritems():
             if not getattr(self, attr):
-                raise ValueError(_("El campo %s no puede estar vacio!" % attr))
+                raise ValueError(_("'%s' no puede estar vacio!" % attr))
         super(Field, self).save()
+
+    class Meta:
+        verbose_name = _('campo de datos')
+        verbose_name_plural = _('campos de datos')
+        app_label = app_label
+        unique_together = ('table', 'name')
 
 
 class Link(BaseField):
@@ -367,6 +247,9 @@ class Link(BaseField):
         app_label = app_label
         unique_together = ('table', 'name')
 
+    def __unicode__(self):
+        return unicode(_("enlace %s a %s") % (self.name, str(self.related)))
+
 
 class Dynamic(models.Model):
 
@@ -381,24 +264,24 @@ class Dynamic(models.Model):
         verbose_name_plural = _('campos dinamicos')
         app_label = app_label
 
-    @transaction.commit_on_success
-    def save(self, *arg, **kw):
-        if not self.pk:
-            # todavia no habia aplicado codigo dinamico al campo:
-            # lo actualizo.
-            update_dynamic(self.related, True)
-        super(Dynamic, self).save(*arg, **kw)
-        # fuerzo una recarga del modelo
-        self.related.table.model = None
-
-    @transaction.commit_on_success
-    def delete(self, *arg, **kw):
-        super(Dynamic, self).delete(*arg, **kw)
-        # cambio el nombre del campo
-        update_dynamic(self.related, False)
-        # fuerzo una recarga del modelo
-        self.related.table.model = None
-
     def __unicode__(self):
         return unicode(_('codigo de %s') % str(self.related))
+
+    @transaction.commit_on_success
+    def save(self):
+        created = not self.pk
+        super(Dynamic, self).save()
+        if created:
+            update_dynamic(Cache, self.related, True)
+            Cache.invalidate(self.related.table)
+
+    @transaction.commit_on_success
+    def delete(self):
+        related = self.related
+        super(Dynamic, self).delete()
+        update_dynamic(Cache, related, False)
+        Cache.invalidate(related.table)
+
+
+Cache = ModelCache(Table, app_label, __name__)
 

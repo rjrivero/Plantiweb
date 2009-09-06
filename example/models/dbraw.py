@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
+"""Funciones de acceso de bajo nivel a la base de datos
 
-from copy import copy 
+Funciones que proporcionan los medios necesarios para modificar en tiempo
+real la base de datos, agregando, alterando y borrando tablas y campos.
+"""
 
 from django.db import models, connection
 from django.core.management import sql, color
@@ -29,8 +32,8 @@ def create_model(name, app_label, module, attrs=None, bases=(models.Model,)):
     # HACKISH - HACKISH - HACKISH
     #
     # Django guarda una cache de modelos, y cuando se intenta crear uno que ya
-    # esta en cache, en vez de actualizar la cache con el modelo nuevo, devuelve
-    # el modelo antiguo.
+    # esta en cache, en vez de actualizar la cache con el modelo nuevo,
+    # devuelve el modelo antiguo.
     #
     # Esto es muy malo para nuestros propositos, asi que a continuacion pongo
     # un hack que elimina el modelo de la cache, si existia
@@ -123,13 +126,14 @@ def sql_add_index(model, name, idxname):
 
 
 def sql_drop_index(model, name, idxname):
-    """Genera el codigo SQL para indexar un campo"""
+    """Genera el codigo SQL para eliminar el indice de un campo"""
     table = model._meta.db_table
     return ["ALTER TABLE %s DROP INDEX %s" % (
                 table, idxname)]
 
 
 def sql_add_unique(model, name, idxname):
+    """Genera el codigo SQL para crear una clave unica"""
     table = model._meta.db_table
     return ["ALTER TABLE %s ADD UNIQUE INDEX %s (%s)" % (
                 table, idxname, name)]
@@ -148,10 +152,8 @@ def sql_update_null(model, name, field, defval):
     return [("UPDATE %s SET %s=%%s WHERE %s IS NULL" % (table, name, name), clean)]
 
 
-
 def execute(query_list):
     """Ejecuta una serie de consultas SQL.
-
     Cada consulta puede ser bien un texto, o bien una tupla(sql, parametros).
     """
     cursor = connection.cursor()
@@ -163,7 +165,7 @@ def execute(query_list):
         ChangeLog(cursor=cursor, sql=sql, params=params).save()
 
 
-def delete_table(instance, pk, model):
+def delete_table(model_cache, instance, pk, model):
     """Borra una tabla de la base de datos"""
     statements = list()
     if instance.parent:
@@ -174,21 +176,20 @@ def delete_table(instance, pk, model):
     execute(statements)
 
 
-def update_table(old_instance, old_model, cur_instance):
+def update_table(model_cache, old_instance, old_model, cur_instance):
     """Actualiza o modifica una tabla de la base de datos"""
     statements = list()
+    oldm, newm = old_model, model_cache[cur_instance]
+    pk = cur_instance.pk
     if not old_instance:
-        known = list(x.model for x in cur_instance.path)
-        oldm, newm = old_model, cur_instance.model
+        known = list(model_cache[x] for x in cur_instance.path)
         statements.extend(sql_add_model(newm, known))
         if cur_instance.parent:
-            model, pmodel = cur_instance.model, cur_instance.parent.model
-            pk = cur_instance.pk
-            statements.extend(sql_add_foreign_key(model, pk, pmodel))
+            pmodel = model_cache[cur_instance.parent]
+            statements.extend(sql_add_foreign_key(newm, pk, pmodel))
     else:
         # si cambia la tabla padre hay que eliminar las foreign keys antiguas
         # y recrearlas.
-        oldm, newm, pk = old_model, cur_instance.model, cur_instance.pk
         op = old_instance.parent.pk if old_instance.parent else None 
         np = cur_instance.parent.pk if cur_instance.parent else None
         if op != np:
@@ -196,7 +197,7 @@ def update_table(old_instance, old_model, cur_instance):
                 # La tabla que se habia creado no tenia campo _up_id porque su
                 # modelo no tenia clave primaria. Tengo que modificar la tabla
                 # para gregar ese campo.
-                pmodel = cur_instance.parent.model
+                pmodel = model_cache[cur_instance.parent]
                 field = newm._meta.get_field('_up')
                 statements.extend(sql_add_field(oldm, '_up', field))
                 statements.extend(sql_rename_model(oldm, newm))
@@ -218,19 +219,19 @@ def update_table(old_instance, old_model, cur_instance):
     execute(statements)
 
 
-def delete_field(table, field):
+def delete_field(model_cache, table, field):
     """Borra un campo de una tabla"""
     try:
-        execute(sql_drop_field(table.model, field._db_name()))
+        execute(sql_drop_field(model_cache[table], field._db_name()))
     except Exception:
         pass
 
 
-def update_field(table, old_instance, current_instance):
+def update_field(model_cache, table, old_instance, current_instance):
     """Actualiza o modifica un campo de una tabla de la base de datos"""
     old, new = old_instance, current_instance
     idxname = "idx%d" % new.pk
-    model, name = table.model, new._db_name()
+    model, name = model_cache[table], new._db_name()
     if not old:
         if new.null:
             statements = sql_add_field(model, name, new.field)
@@ -257,9 +258,10 @@ def update_field(table, old_instance, current_instance):
         # si cambia el nombre, rename previo
         if old_name != name:
             statements.extend(sql_rename_field(model, old_name, name, field))
-        # si cambia el valor de null, nos aseguramos de que no hay valores null
+        # si cambia el valor de null, nos aseguramos de que no hay nulos
         if old.null and not new.null:
-            statements.extend(sql_update_null(model, name, field, new.default))
+            statements.extend(sql_update_null(model, name, field,
+                                              new.default))
         statements.extend(sql_modify_field(model, name, field))
     # si el campo ha adquirido un indice, lo indexo
     if not old or old.index != new.index:
@@ -272,8 +274,9 @@ def update_field(table, old_instance, current_instance):
     execute(statements)
 
 
-def update_dynamic(field, dynamic):
+def update_dynamic(model_cache, field, dynamic):
     old_name = field._dynamic_name(not dynamic)
     new_name = field._dynamic_name(dynamic)
-    execute(sql_rename_field(field.table.model, old_name, new_name, field.field))
+    execute(sql_rename_field(model_cache[field.table], old_name,
+                             new_name, field.field))
 

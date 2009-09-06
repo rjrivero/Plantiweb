@@ -21,6 +21,11 @@ DATABASE_USER = 'example'             # Not used with sqlite3.
 DATABASE_PASSWORD = 'nextiraone'      # Not used with sqlite3.
 DATABASE_HOST = ''             # Set to empty string for localhost. Not used with sqlite3.
 DATABASE_PORT = ''             # Set to empty string for default. Not used with sqlite3.
+DATABASE_OPTIONS = {
+   # forzamos a usar tablas InnoDB, por defecto en mysql se usa MyISAM que
+   # no soporta transacciones ni alter table modify column.
+   "init_command": "SET storage_engine=INNODB",
+}
 
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
@@ -70,8 +75,10 @@ MIDDLEWARE_CLASSES = (
     'example.middleware.SQLLogMiddleware',
 )
 
-#ROOT_URLCONF = 'trunk.urls'
 ROOT_URLCONF = 'plantiweb.urls'
+AUTH_PROFILE_MODULE = 'example.UserView'
+LOGIN_URL = '/example/login/'
+LOGIN_REDIRECT_URL = '/example/home/'
 
 TEMPLATE_DIRS = (
     # Put strings here, like "/home/html/django_templates" or "C:/www/django/templates".

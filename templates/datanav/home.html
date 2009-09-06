@@ -1,0 +1,58 @@
+{% extends "datanav/base.html" %}
+
+{% block title %}home{% endblock %}
+{% block description %}Bienvenido al navegador de datos{% endblock %}
+
+{% block content %}
+
+<form method="GET" action="">
+
+<script language="javascript"><!--
+  function h_change() {
+    h_text.value = h_select.value;
+    hide_select();
+  }
+  function toggle_select() {
+    if(toggle) {
+      h_text.style.visibility = "hidden";
+      h_select.style.visibility = "visible";
+      toggle = false;
+      h_select.focus();
+    }
+    else hide_select();
+  }
+  function hide_select() {
+    h_select.style.visibility = "hidden";
+    h_text.style.visibility = "visible";
+    toggle = true;
+    h_text.focus();
+  }
+--></script>
+
+<div id="selector">
+  Mostrar
+  (<a href="javascript: toggle_select();">hist&oacute;rico</a> 
+  <select name="h">
+    {% for option in h_list %}
+      <option value="{{ option }}"{% ifequal option h %} selected{% endifequal %}>{{ option }}</option>
+    {% endfor %}
+  </select> entradas):
+  <select style="width: 50%; position: absolute; cursor: hand; visibility: hidden" id="h_select" size="10" onChange="javascript: h_change();">
+    {% for option in history %}
+      <option value="{{ option|escapejs }}"{% ifequal selected forloop.counter0 %} selected{% endifequal %}>{{ option }}</option>
+    {% endfor %}
+  </select>
+  <input style="visibility: hidden; width: 50%;" type="text" id="h_text" name="q" value="{{ q|escapejs }}"/> 
+  <input type="submit" value="Buscar"/>
+</div>
+
+<script language="javascript"><!--
+  h_text = document.getElementById('h_text');
+  h_select = document.getElementById('h_select');
+  toggle = true;
+  hide_select();
+--></script>
+
+</form>
+
+{% endblock %}

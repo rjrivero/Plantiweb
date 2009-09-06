@@ -1,0 +1,33 @@
+#logindiv {
+ width: 100%;
+ text-align: center;
+ padding: 2em;
+}
+
+#logintable {
+ margin: auto;
+}
+
+#logintable thead th {
+ font-weight: normal;
+ text-align: center;
+ background-color: #e1e1ff;
+ padding: 1.5em;
+ border: thin solid black;
+}
+
+#logintable th, #logintable td {
+ font-weight: normal;
+ text-align: left;
+ padding: 1em 1em 0 1em;
+}
+
+#logintable tfoot th {
+ text-align: center;
+ padding: 1em;
+}
+
+input[type=submit] {
+ width: 100%;
+}
+

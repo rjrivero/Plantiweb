@@ -20,12 +20,22 @@
 <body id="basebody">
 
 <!-- CABECERA -->
-<div id="header" class="header">
-    <div id="customer">{{ customer }}</div>
-    <div id="provider"><img src="/resources/img/logo.jpg" alt="{{ provider }}"/></div>
-</div>
 
-{%block base_body %}{% endblock %}
+{% block header %}
+<div id="header">
+  <div id="usertools">
+    <ul>
+      <li><a href="{% url chpassview %}">Cambiar clave</a></li>
+      <li><a href="{% url logoutview %}">Cerrar sesi&oacute;n</a></li>
+    </ul>
+  </div>
+  <div id="welcome">
+    Bienvenido, <strong>{% firstof user.first_name user.username %}</strong>.
+  </div>
+</div>
+{% endblock %}
+
+{%block content %}{% endblock %}
 
 </body>
 

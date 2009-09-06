@@ -20,6 +20,11 @@ class TableViewInline(admin.TabularInline):
     extra = 4
 
 
+class UserViewInline(admin.TabularInline):
+    model = UserView
+    extra = 4
+
+
 class TableAdmin(admin.ModelAdmin):
     list_display = ['fullname', 'name', 'parent']
     fields  = ['name', 'parent', 'comment']
@@ -49,8 +54,8 @@ class ChangeLogAdmin(admin.ModelAdmin):
 
 
 class ViewAdmin(admin.ModelAdmin):
-    list_display = ['name']
-    inlines = [TableViewInline]
+    list_display = ['name', 'comment']
+    inlines = [TableViewInline, UserViewInline]
 
 
 admin.site.register(Table, TableAdmin)

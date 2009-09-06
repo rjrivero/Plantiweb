@@ -16,11 +16,21 @@ app_label = 'example'
 
 class RevisionManager(models.Manager):
 
+    """Gestor de revisiones"""
+
     def current(self):
-        return self.order_by('-major', '-minor', '-rev')[0]
+        try:
+            return self.order_by('-major', '-minor', '-rev')[0]
+        except IndexError:
+            new = RevisionLog(major=0, minor=0, rev=1)
+            new.summary = _("Revision inicial")
+            new.save()
+            return new
 
 
 class RevisionLog(models.Model):
+
+    """Listado de revisiones por las que ha pasado la base de datos"""
 
     major = models.IntegerField()
     minor = models.IntegerField()
@@ -52,6 +62,8 @@ class PickledObject(str):
 
 
 class PickledObjectField(models.Field):
+
+    """Objecto serializable para almacenar en base de datos"""
 
     __metaclass__ = models.SubfieldBase
 
@@ -87,6 +99,8 @@ class PickledObjectField(models.Field):
 
 class ChangeLogManager(models.Manager):
 
+    """Gestor de modificaciones de metadatos"""
+
     def current(self):
         try:
             return self.order_by('-id')[0]
@@ -97,6 +111,8 @@ class ChangeLogManager(models.Manager):
 
 
 class ChangeLog(models.Model):
+
+    """Listado de modificaciones hechas a los metadatos de la aplicacion"""
 
     major  = models.IntegerField(blank=True)
     minor  = models.IntegerField(blank=True)
@@ -115,6 +131,7 @@ class ChangeLog(models.Model):
         super(ChangeLog, self).__init__(*arg, **kw)
 
     def save(self):
+        """Etiqueta el objeto con la revision actuall y lo salva"""
         current     = RevisionLog.objects.current()
         self.major  = current.major
         self.minor  = current.minor

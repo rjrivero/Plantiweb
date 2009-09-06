@@ -4,49 +4,20 @@
 
 from gettext import gettext as _
 from django.db import models
+from django.contrib.auth.models import User
 
-from .dbmeta import DBIdentifierField, Table
-from .dblog import app_label
+from .dblog import app_label, ChangeLog
+from .dbfields import *
+from .dbmeta import Table
 
-
-class TokenTuple(tuple):
-
-    def __new__(cls, token, value):
-        if not hasattr(value, '__iter__'):
-            value = tuple(x.strip() for x in value.split(token))
-        if any(x for x in value if not DBIdentifierField._VALID.match(x)):
-            raise ValueError(value)
-        obj = tuple.__new__(cls, value)
-        obj.token = token
-        return obj
-
-    def __unicode__(self):
-        return self.token.join(self)
-
-    def __str__(self):
-        return str(unicode(self))
-
-
-class SeparatedValuesField(models.CharField):
-
-    __metaclass__ = models.SubfieldBase
- 
-    def __init__(self, *args, **kwargs):
-        self.token = unicode(kwargs.pop('token', ','))
-        super(SeparatedValuesField, self).__init__(*args, **kwargs)
-
-    def to_python(self, value):
-        return TokenTuple(self.token, value)
-
-    def get_db_prep_value(self, value):
-        return unicode(TokenTuple(self.token, value))
- 
 
 class View(models.Model):
 
     """MetaTabla que define las vistas de las tablas creadas"""
 
     name = models.CharField(max_length=64, verbose_name=_('nombre'))
+    comment = models.CharField(max_length=240, verbose_name=_('descripcion'),
+                               blank=True, null=True)
 
     class Meta:
         verbose_name = _('vista')
@@ -67,11 +38,63 @@ class TableView(models.Model):
     fields  = SeparatedValuesField(max_length=240, verbose_name=_('campos'))
 
     class Meta:
-        verbose_name = _('vista de tabla')
-        verbose_name_plural = _('vistas de tabla')
+        verbose_name = _('vista de tablas')
+        verbose_name_plural = _('vistas de tablas')
         app_label = app_label
         unique_together = ('view', 'table')
 
     def __unicode__(self):
         return u"%s %s" % (self.view, self.table)
+
+
+class UserView(models.Model):
+
+    """Asigna una vista a un usuario"""
+
+    user = models.ForeignKey(User, unique=True, verbose_name=_('usuario'))
+    view = models.ForeignKey(View, verbose_name=_('vista'))
+
+    class Meta:
+        verbose_name = _('vista de usuario')
+        verbose_name_plural = _('vistas de usuarios')
+        app_label = app_label
+        unique_together = ('user', 'view')
+
+
+class Profile(object):
+
+    """Filtra los atributos accesibles de un objeto"""
+
+    def __init__(self, userview):
+        try:
+            if userview:
+                self.view = userview.view.pk
+            else:
+                self.view = View.objects.get(name__iexact='Default').pk
+        except View.DoesNotExist:
+            self.view = None
+        self.invalidate()
+
+    def invalidate(self):
+        self.version = ChangeLog.objects.current().pk
+        self.fields = dict()
+        self.summaries = dict()
+
+    def _cached(self, d, pk, field):
+        try:
+            return d[pk] 
+        except KeyError:
+            try:
+                item = TableView.get(view_id=self.view, table_id=pk)
+            except (TableView.DoesNotExist):
+                item = TokenTuple("")
+            else:
+                item = getattr(item, field)
+            return d.setdefault(pk, item)
+
+    def summary(self, model):
+        return self._cached(self.summaries, model._DOMD.pk, 'summary')
+
+    def fields(self, model):
+        return self._cached(self.fields, model._DOMD.pk, 'fields')
 
