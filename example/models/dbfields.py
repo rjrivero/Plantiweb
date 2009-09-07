@@ -2,6 +2,11 @@
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 
+import re
+
+from django.db import models
+
+
 class DBIdentifierField(models.CharField):
 
     """Tipo de columna que representa un nombre de tabla o campo valido

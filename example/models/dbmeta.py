@@ -118,7 +118,7 @@ class BaseField(models.Model):
             old = sender.objects.get(pk=self.pk)
             changed = any((getattr(old, x) != getattr(self, x))
                           for x in sender.METAFIELDS)
-        super(Basefield, self).save()
+        super(BaseField, self).save()
         if changed:
             update_field(Cache, self.table, old, self)
             for link in self._get_links():

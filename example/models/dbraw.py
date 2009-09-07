@@ -7,6 +7,8 @@ Funciones que proporcionan los medios necesarios para modificar en tiempo
 real la base de datos, agregando, alterando y borrando tablas y campos.
 """
 
+from copy import copy
+
 from django.db import models, connection
 from django.core.management import sql, color
 # HACKISH - HACKISH - HACKISH
