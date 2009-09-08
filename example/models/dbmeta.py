@@ -1,287 +1,245 @@
 #!/usr/bin/env python
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
+"""
+Creacion y gestion de modelos y metadatos
+
+Gestiona una cache de modelos construidos dinamicamente segun los datos
+almacenados en la base de datos, y le agrega a cada modelo los metadatos
+necesarios para facilitar una instropeccion lo mas independiente posible
+de django. 
+"""
 
 from gettext import gettext as _
-from itertools import chain
-from datetime import datetime
-from collections import namedtuple
-from copy import copy
-import re
+from django.db import models
 
-from django.db import models, transaction, connection
+from plantillator.data import dataobject
+from plantillator.data.container import DataContainer
 
-from .dblog import app_label
-from .dbbase import ModelCache
-from .dbfields import *
-from .dbraw import *
+from .dbraw import create_model
+from .dbbase import DJModel, Deferrer
 
 
-class Table(models.Model):
+class Children(dict):
 
-    """MetaTabla que define las tablas de la aplicacion"""
+    """Diccionario auto-indexado de descendientes de una tabla
 
-    objects = CatchManager()
-    parent  = models.ForeignKey('self', verbose_name=_('subtabla de'),
-                blank=True, null=True)
-    name    = DBIdentifierField(verbose_name=_('nombre'))
-    comment = models.TextField(blank=True, verbose_name=_('comentario'))
+    Da acceso a las instancias hijas de una cierta instancia,
+    recuperandolas de la base de datos para meterlas en cache si
+    aun no lo estaban.
+    """
 
-    def __init__(self, *arg, **kw):
-        super(Table, self).__init__(*arg, **kw)
+    def __init__(self, model_cache, instance):
+        self.cache = model_cache
+        self.pk = instance.pk
 
-    @property
-    def path(self):
-        if not self.parent:
-            return (self,)
-        return tuple(chain(self.parent.path, (self,)))
-
-    @property
-    def modelname(self):
-        """Nombre para el modelo"""
-        if not self.pk:
-            raise ValueError, _('El modelo aun no ha sido salvado')
-        return "%s_%d" % (str(self.name), self.pk)
-
-    @property
-    def fullname(self):
-        """Nombre descriptivo completo"""
-        return u".".join(x.name for x in self.path)
-
-    class Meta:
-        verbose_name = _('Tabla')
-        verbose_name_plural = _('Tablas')
-        app_label = app_label
-        unique_together = ('parent', 'name')
-
-    def __unicode__(self):
-        return self.fullname
-
-    @transaction.commit_on_success
-    def save(self):
-        """Crea o modifica la tabla en la base de datos"""
-        old_instance, old_model = None, None
-        if self.pk:
-            old_instance = Table.objects.get(pk=self.pk)
-            old_model = Cache[old_instance]
-        super(Table, self).save()
-        if old_instance is not None:
-            Cache.invalidate(old_instance)
-        update_table(Cache, old_instance, old_model, self)
-
-    @transaction.commit_on_success
-    def delete(self):
-        """Borra las tablas"""
-        # borro antes los objetos derivados, porque una vez borrada la
-        # instancia queda en un estado bastante inconsistente.
-        delete_table(Cache, self, self.pk, Cache[self])
-        super(Table, self).delete()
-
-
-class BaseField(models.Model):
-
-    """Modelo de campo comun para Field y Link"""
-
-    name    = DBIdentifierField(verbose_name=_('nombre'))
-    null    = models.BooleanField(verbose_name=_('NULL'))
-    index   = models.IntegerField(verbose_name=_('INDEX'), choices=(
-                      (NO_INDEX,       _('sin indice')),
-                      (UNIQUE_INDEX,   _('unico')),
-                      (MULTIPLE_INDEX, _('multiple')),
-                  ), default=NO_INDEX)
-    comment = models.CharField(max_length=254, blank=True,
-                               verbose_name=_('comentario'))
-
-    # Campos que provocan cambios en las tablas generadas
-    # (todos menos "comment")
-    METAFIELDS = ['name', 'null', 'index']
-
-    def _db_name(self):
-        """Devuelve el nombre que tendra el campo en el modelo"""
-        return self.name
-
-    def _get_links(self):
-        """Devuelvo una lista de los "Links" relacionados con el campo"""
-        return tuple()
-
-    class Meta:
-        abstract = True
-
-    def __unicode__(self):
-        return unicode(_("<%s> %s") % (unicode(self.table), self.name))
-
-    @transaction.commit_on_success
-    def save(self):
-        """Modifica los campos de las tablas en la bd"""
-        sender, old, changed = self.__class__, None, True
-        if self.pk:
-            old = sender.objects.get(pk=self.pk)
-            changed = any((getattr(old, x) != getattr(self, x))
-                          for x in sender.METAFIELDS)
-        super(BaseField, self).save()
-        if changed:
-            update_field(Cache, self.table, old, self)
-            for link in self._get_links():
-                # actualizo tambien los campos que cogen su tipo de este
-                update_field(Cache, link.table, link.wrap(old), link)
-                Cache.invalidate(link.table)
-        # actualizo el modelo
-        Cache.invalidate(self.table)
-
-    @transaction.commit_on_success
-    def delete(self):
-        old = self.__class__.objects.get(pk=self.pk)
-        old_table = old.table
-        super(Basefield, self).delete()
-        delete_field(Cache, old_table, old)
-        Cache.invalidate(old_table)
-
-
-X = namedtuple('X', 'verbose, default, field, params')
-FIELDS = {
-    'CharField':      X('texto',  '', models.CharField, {'max_length': 'len'}),
-    'IPAddressField': X('IP',     '', models.IPAddressField, {}),
-    'IntegerField':   X('numero', 0,  models.IntegerField,   {}),
-}
-
-
-class Field(BaseField):
-
-    """Campo tipado de la base de datos"""
-    
-    objects = CatchManager()
-    table   = models.ForeignKey(Table)
-    kind    = models.CharField(max_length=32, verbose_name=_('tipo'),
-                  choices=list(
-                      (name, _(x.verbose)) for name, x in FIELDS.iteritems()))
-    # solo para los campos tipo CharField
-    len     = BoundedIntegerField(1, 1024, verbose_name=_('longitud'),
-                  blank=True, null=True)
-
-    # Campos que provocan cambios en las tablas generadas
-    # posiblemente todos menos "comment"
-    METAFIELDS = list(chain(BaseField.METAFIELDS, ['table', 'kind',  'len']))
-
-    @property
-    def field(self):
-        attrs = FIELDS[self.kind]
-        ftype = attrs.field
-        fparm = dict((x, getattr(self, y))
-                     for x, y in attrs.params.iteritems())
-        fparm['blank'] = fparm['null'] = self.null
-        # No utilizo los mecanismos de django para crear indices, sino que
-        # uso directamente la base de datos. Esto es porque django no ofrece
-        # facilidades para borrar los indices una vez creados.
-        #fparm['db_index'] = (self.index == MULTIPLE_INDEX)
-        #fparm['unique'] = (self.index == UNIQUE_INDEX)
-        return ftype(**fparm)
-
-    @property
-    def default(self):
-        return FIELDS[self.kind].default
-
-    def _dynamic_name(self, dynamic=False):
-        """Devuelve el nombre normal, o el dinamico"""
-        return str(self.name) if not dynamic else ('_%s' % str(self.name))
-
-    def _db_name(self):
-        """Modifica el nombre si tenemos asociado codigo dinamico"""
+    def __getitem__(self, item):
+        # intento leer el item del diccionario
         try:
-            dynamic = self.dynamic
-        except Dynamic.DoesNotExist:
-            dynamic = None
-        return self._dynamic_name(dynamic)
+            return dict.__getitem__(self, item)
+        except KeyError:
+            pass
+        # si falla, intento cargar el objeto de la base de datos
+        try:
+            objects = self.cache.metamodel.objects
+            child = objects.get(parent_id=self.pk, name=item)
+        except:
+            raise KeyError(item)
+        else:
+            return self.setdefault(item, self.cache[child])
 
-    def _get_links(self):
-        """Devuelvo una lista de todos los "Links" del campo"""
-        return Link.objects.filter(related=self.pk)
-
-    def save(self):
-        """Compruebo que estan definidos los campos adicionales del tipo"""
-        field = FIELDS[self.kind]
-        for param, attr in field.params.iteritems():
-            if not getattr(self, attr):
-                raise ValueError(_("'%s' no puede estar vacio!" % attr))
-        super(Field, self).save()
-
-    class Meta:
-        verbose_name = _('campo de datos')
-        verbose_name_plural = _('campos de datos')
-        app_label = app_label
-        unique_together = ('table', 'name')
+    def full(self):
+        """Carga en cache todos los modelos hijos de este"""
+        objects = self.cache.metamodel.objects
+        for item in objects.filter(parent_id=self.pk):
+            self[item.name] = self.cache[item]
 
 
-class Link(BaseField):
+class MetaData(dataobject.MetaData):
 
-    """Campo anclado a un campo tipado, hereda sus caracteristicas"""
+    """Metadatos asociados a una tabla de cliente"""
 
-    objects = CatchManager()
-    table   = models.ForeignKey(Table)
-    related = models.ForeignKey(Field, verbose_name=_('ligado a'),
-                blank=True, null=True)
-    filter  = models.CharField(max_length=1024, verbose_name=_('filtro'))
+    def __init__(self, model_cache, instance):
 
-    # Campos que provocan cambios en las tablas generadas
-    METAFIELDS = list(chain(BaseField.METAFIELDS, ['table', 'related']))
+        """Procesa la instancia que define la tabla.
 
-    def wrap(self, field):
-        """Devuelve un campo actualizado con los atributos del link"""
-        other = copy(field)
-        other.table = self.table
-        other.name = self.name
-        other.null = self.null
-        other.index = self.index
-        return other
+        instance es una instancia de Table. Esta funcion la procesa y calcula
+        los metadatos asociados al modelo:
 
-    @property
-    def field(self):
-        return self.wrap(self.related).field
+        - pk: clave primaria de la instancia.
+        - attribs: lista (set) de nombres de atributos.
+        - summary: lista ordenada (list) de campos que describen al objeto.
+        - children: diccionario de subtipos.
+        - filters: diccionario de filtros para los campos enlazados.
+        """
+        parent = (model_cache[instance.parent] if instance.parent
+                                               else model_cache.root)
+        super(MetaData, self).__init__(instance.name, parent)
+        # analizo los campos dinamicos
+        self.attribs, self.dynamic = [], dict()
+        for field in instance.field_set.all():
+            self.attribs.append(field.name)
+            try:
+                code = field.dynamic.code
+            except:
+                pass
+            else:
+                source_id = '<%s.%s.code>' % (instance.fullname, field.name)
+                self.dynamic[field.name] = compile(code, source_id, 'exec')
+        # analizo los filtros
+        self.filters = dict()
+        for field in instance.link_set.all():
+            self.attribs.append(field.name)
+            self.filters[field.name] = field
+        # actualizo sumario y subtablas
+        self.children = Children(model_cache, instance)
+        self.summary = self.attribs[:3]
+        self.pk = instance.pk
 
-    @property
-    def default(self):
-        return FIELDS[self.related.kind].default
+    def post_new(self, cls, glob, data):
+        """Agrega a la clase las propiedades y filtros adecuados"""
+        super(MetaData, self).post_new(cls)
+        # construyo propiedades para los campos dinamicos
+        for attrib, code in self.dynamic.iteritems():
+            static = '_%s' % str(attrib)
+            def fget(self):
+                local = dataobject.Fallback(data, {'self': self}, 1)
+                exec code in glob, local
+                return getattr(local, attrib)
+            def fset(self, value):
+                setattr(self, static, value)
+            setattr(cls, attrib, property(fget, fset))
+        # preparo los filtros:
+        for attrib, field in self.filters.iteritems():
+            relname = field.related.name
+            source_id = '<%s.%s.filter>' % (field.table.fullname, field.name)
+            code = compile(field.filter, source_id, 'eval')
+            def run_filter(self):
+                for item in eval(code, glob, data):
+                    yield (getattr(item, relname), item)
+            self.filters[attrib] = run_filter
 
-    class Meta:
-        verbose_name = _('campo de enlace')
-        verbose_name_plural = _('campos de enlace')
-        app_label = app_label
-        unique_together = ('table', 'name')
-
-    def __unicode__(self):
-        return unicode(_("enlace %s a %s") % (self.name, str(self.related)))
-
-
-class Dynamic(models.Model):
-
-    """Modificador de campo que lo convierte en dinamico"""
-
-    objects = CatchManager()
-    related = models.OneToOneField(Field, verbose_name=_('ligado a'))
-    code = models.TextField(verbose_name=_('codigo'))
-
-    class Meta:
-        verbose_name = _('campo dinamico')
-        verbose_name_plural = _('campos dinamicos')
-        app_label = app_label
-
-    def __unicode__(self):
-        return unicode(_('codigo de %s') % str(self.related))
-
-    @transaction.commit_on_success
-    def save(self):
-        created = not self.pk
-        super(Dynamic, self).save()
-        if created:
-            update_dynamic(Cache, self.related, True)
-            Cache.invalidate(self.related.table)
-
-    @transaction.commit_on_success
-    def delete(self):
-        related = self.related
-        super(Dynamic, self).delete()
-        update_dynamic(Cache, related, False)
-        Cache.invalidate(related.table)
+    def choices(self, item, attr):
+        """Devuelve una lista de alternativas para el campo, si es enlazado"""
+        try:
+            return list(self.filters[attr](item))
+        except KeyError:
+            return None
 
 
-Cache = ModelCache(Table, app_label, __name__)
+def RootType(model_cache):
+    
+    """Crea un tipo raiz (parent == None)"""
+
+    class Root(dataobject.DataType(object)):
+
+        """Tipo raiz (parent == None)"""
+
+        def __init__(self):
+            super(Root, self).__init__()
+            self._cache = set()
+
+        def __getattr__(self, attr):
+            """Busca una tabla con el nombre dado y parent NULL"""
+            try:
+                objects  = model_cache.metamodel.objects
+                instance = objects.get(parent=None, name=attr)
+                objects  = model_cache[instance].objects.all()
+            except model_cache.metamodel.DoesNotExist:
+                raise AttributeError(attr)
+            else:
+                self._cache.add(attr)
+                setattr(self, attr, objects)
+                return objects
+
+        def invalidate(self, item=None):
+            """Invalida la cache de objetos, o el item indicado"""
+            if item is None:
+                for item in self._cache:
+                    delattr(self, item)
+                self._cache = set()
+            elif item in self._cache:
+               delattr(self, item)
+               self._cache.delete(item)
+
+    rootmeta = dataobject.MetaData('ROOT', None)
+    rootmeta.post_new(Root)
+    return Root
+
+
+def model_unicode(self):
+    """Devuelve una representacion unicode del objeto"""
+    return u", ".join((u"%s:%s" % (field, repr(self[field])))
+                      for field in self._type._DOMD.summary)
+
+
+class ModelCache(DataContainer):
+
+    """Cache de modelos"""
+
+    def __init__(self, metamodel, app_label, module):
+        """Inicia el constructor de tipos."""
+        self.models = dict()
+        self.metamodel = metamodel
+        self.app_label = app_label
+        self.module = module
+        DataContainer.__init__(self, RootType(self), Deferrer, None)
+
+    def __getitem__(self, obj):
+        """Recupera o crea un modelo"""
+        if not obj.pk:
+            # Solo permitimos crear objetos ya salvados, para evitar problemas
+            # de cache y para tener el nombre de la tabla a mano.
+            raise ValueError('pk is None')
+        try:
+            return self.models[obj.pk]
+        except KeyError:
+            return self.models.setdefault(obj.pk, self.create_model(obj))
+
+    def invalidate(self, instance=None):
+        """Elimina todos los modelos anteriores a la revision actual"""
+        if instance is None:
+            self.models = dict()
+            self.data.invalidate()
+        else:
+            self.remove_model(instance)
+            top = instance.path[0]
+            self.data.invalidate(top.name)
+
+    def create_model(self, obj):
+        """Crea el modelo asociado a una instancia"""
+        attrs = {
+            '_id': models.AutoField(primary_key=True),
+            '__unicode__': model_unicode,
+        }
+        attrs.update(dict((f._db_name(), f.field)
+                     for f in obj.field_set.all()))
+        attrs.update(dict((f.name, f.field)
+                     for f in obj.link_set.all()))
+        if obj.parent:
+            parent_model = self[obj.parent]
+            # la clave primaria debe permitir valores NULL para poder
+            # cambiar el parent de una tabla dinamicamente.
+            attrs['_up'] = models.ForeignKey(parent_model,
+                               blank=True, null=True)
+        else:
+            # si un objeto no tiene padre, arreglo la clase derivada para
+            # que "up" devuelva el objeto de datos raiz.
+            attrs['_up']  = property(lambda x: self.data)
+        name, bases = obj.modelname, (DJModel,)
+        meta  = MetaData(self, obj)
+        model = create_model(name, self.app_label, self.module, attrs, bases)
+        meta.post_new(model, self.glob, self.data)
+        return model
+
+    def remove_model(self, instance):
+        """Desvincula un modelo que va a ser modificado"""
+        if not instance.pk:
+            return
+        for obj in self.metamodel.objects.filter(parent=instance.pk):
+            self.remove_model(obj)
+        try:
+            del(self.models[instance.pk])
+        except KeyError:
+            pass
 

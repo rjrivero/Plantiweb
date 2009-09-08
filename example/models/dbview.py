@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 
 from .dblog import app_label, ChangeLog
 from .dbfields import *
-from .dbmeta import Table
+from .dbtable import Table
 
 
 class View(models.Model):
