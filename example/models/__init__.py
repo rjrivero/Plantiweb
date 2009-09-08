@@ -3,6 +3,6 @@
 
 
 from .dblog import RevisionLog, ChangeLog, app_label
-from .dbtable import Table, Link, Field, Dynamic, Cache
+from .dbmodel import Table, Link, Field, Dynamic, Cache
 from .dbview import TableView, UserView, View, Profile
 

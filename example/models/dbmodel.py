@@ -13,8 +13,7 @@ from django.db import models, transaction, connection
 
 from .dblog import app_label
 from .dbmeta import ModelCache
-from .dbraw import update_table, delete_table
-from .dbraw import update_field, delete_field, update_dynamic
+from .dbraw import *
 from .dbfields import *
 
 

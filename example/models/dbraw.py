@@ -214,11 +214,25 @@ def update_table(model_cache, old_instance, old_model, cur_instance):
             else:
                 statements.extend(sql_drop_foreign_key(pk, oldm))
                 statements.extend(sql_rename_model(oldm, newm))
-                pmodel = cur_instance.parent.model
+                pmodel = model_cache[cur_instance.parent]
                 statements.extend(sql_add_foreign_key(newm, pk, pmodel))
         else:
             statements.extend(sql_rename_model(oldm, newm))
     execute(statements)
+
+
+def drop_combined_keys(model_cache, table):
+    """Borra todas las claves "unicas" de una subtabla
+    En una tabla anidada, los campos definidos como clave unica no se
+    implementan como una clave unica sobre el campo, sino sobre la combinacion
+    (campo, _up).
+    Al reparentar una tabla, estos indices tienen que ser borrados y
+    re-creados.
+    """
+    pre, post =  [], []
+    for field in table.field_set():
+        if field.index == UNIQUE_INDEX:
+             pre.extend(sql_drop_combined_key())
 
 
 def delete_field(model_cache, table, field):
