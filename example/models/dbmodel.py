@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 
@@ -64,10 +65,13 @@ class Table(models.Model):
         if self.pk:
             old_instance = Table.objects.get(pk=self.pk)
             old_model = Cache[old_instance]
+        pre_save_table(Cache, old_instance, old_model, self)
         super(Table, self).save()
+        # invalido antes del post-save, para que la funcion
+        # tenga ya disponible el nuevo modelo.
         if old_instance is not None:
             Cache.invalidate(old_instance)
-        update_table(Cache, old_instance, old_model, self)
+        post_save_table(Cache, old_instance, old_model, self)
 
     @transaction.commit_on_success
     def delete(self):
