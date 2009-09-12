@@ -121,23 +121,23 @@ def sql_rename_field(model, old_name, new_name, field):
     return ["ALTER TABLE %s CHANGE COLUMN %s %s" % (tname, old, sql)]
 
 
-def sql_add_index(model, name, pk):
+def sql_add_index(model, name, idxname):
     """Genera el codigo SQL para indexar un campo"""
     #style, c = color.no_style(), connection.creation
     #return c.sql_indexes_for_field(model, field, style)
     table = model._meta.db_table
-    return ["ALTER TABLE %s ADD INDEX idx%d (%s)" % (
-                table, pk, name)]
+    return ["ALTER TABLE %s ADD INDEX %s (%s)" % (
+                table, idxname, name)]
 
 
-def sql_drop_index(model, name, pk):
+def sql_drop_index(model, name, idxname):
     """Genera el codigo SQL para eliminar el indice de un campo"""
     table = model._meta.db_table
-    return ["ALTER TABLE %s DROP INDEX idx%d" % (
-                table, pk)]
+    return ["ALTER TABLE %s DROP INDEX %s" % (
+                table, idxname)]
 
 
-def sql_add_unique(model, name, pk, combined=False):
+def sql_add_unique(model, name, idxname, combined=False):
     """Genera el codigo SQL para crear una clave unica
     Si combined = True, incluye en el indice tanto el campo indicado
     por "name", como el campo _up.
@@ -145,8 +145,8 @@ def sql_add_unique(model, name, pk, combined=False):
     table = model._meta.db_table
     if combined:
         name = ', '.join((name, '_up_id'))
-    return ["ALTER TABLE %s ADD UNIQUE INDEX idx%d (%s)" % (
-                table, pk, name)]
+    return ["ALTER TABLE %s ADD UNIQUE INDEX %s (%s)" % (
+                table, idxname, name)]
 
 
 def sql_modify_field(model, name, field):
@@ -186,13 +186,13 @@ def delete_table(model_cache, instance, pk, model):
     execute(statements)
 
 
-def reindex_unique(instance, combined):
+def reindex_unique(instance, model, combined):
     """Elimina y vuelve a crear los indices unicos de una tabla"""
     statements = list()
-    for field in cur_instance.field_set.filter(index==UNIQUE_INDEX):
-        name, pk = field._db_name(), field.pk
-        statements.extend(sql_drop_index(oldm, name, pk))
-        statements.extend(sql_add_unique(oldm, name, pk, combined))
+    for field in instance.uniques:
+        name, idxname = field._db_name, field._db_index
+        statements.extend(sql_drop_index(model, name, idxname))
+        statements.extend(sql_add_unique(model, name, idxname, combined))
     return statements
 
 
@@ -240,14 +240,14 @@ def post_save_table(model_cache, old_instance, old_model, cur_instance):
                 statements.extend(sql_add_foreign_key(newm, pk, pmodel))
                 # los campos unicos que hubiera, hay que extenderlos para ahora
                 # hacerlos unicos en conjunto con el _up
-                statements.extend(reindex_unique(cur_instance, True))
+                statements.extend(reindex_unique(cur_instance, newm, True))
             elif op is not None and np is None:
                 # La tabla tenia un parent y ahora ya no, el campo '_up'
                 # debe desaparecer
                 pk = cur_instance.pk 
                 # los campos unicos que hubiera, hay que encogerlos para ahora
                 # hacerlos unicos sin tener en cuenta el _up
-                statements.extend(reindex_unique(old_instance, False))
+                statements.extend(reindex_unique(old_instance, oldm, False))
                 statements.extend(sql_drop_foreign_key(pk, oldm))
                 statements.extend(sql_drop_field(oldm, '_up_id'))
                 statements.extend(sql_rename_model(oldm, newm))
@@ -264,7 +264,7 @@ def post_save_table(model_cache, old_instance, old_model, cur_instance):
 def delete_field(model_cache, table, field):
     """Borra un campo de una tabla"""
     try:
-        execute(sql_drop_field(model_cache[table], field._db_name()))
+        execute(sql_drop_field(model_cache[table], field._db_name))
     except Exception:
         pass
 
@@ -272,7 +272,7 @@ def delete_field(model_cache, table, field):
 def update_field(model_cache, table, old_instance, current_instance):
     """Actualiza o modifica un campo de una tabla de la base de datos"""
     old, new = old_instance, current_instance
-    model, name = model_cache[table], new._db_name()
+    model, name = model_cache[table], new._db_name
     if not old:
         if new.null:
             statements = sql_add_field(model, name, new.field)
@@ -282,20 +282,20 @@ def update_field(model_cache, table, old_instance, current_instance):
             # Por eso, creamos el campo como NULL y luego lo modificamos.
             fakeold = copy(new) # no usar "old", porque si no
             fakeold.null = True # no se crean los indices
-            fakename, fakefield = fakeold._db_name(), fakeold.field
+            fakename, fakefield = fakeold._db_name, fakeold.field
             statements = sql_add_field(model, fakename, fakefield)
             field, default = new.field, new.default
             statements.extend(sql_update_null(model, name, field, default))
             statements.extend(sql_modify_field(model, name, field))
     else:
-        old_name, field = old._db_name(), new.field
+        old_name, field = old._db_name, new.field
         statements = list()
         # si cambia la tabla, mal rollo -> lanzamos ValueError
         if old.table != new.table:
             raise ValueError(_('No esta permitido cambiar la tabla'))
-        # si se elimina la restriccion de unico, quito el indice.
+        # si se eliminan indices, los quito.
         if old.index != new.index and old.index:
-            statements.extend(sql_drop_index(model, old_name, new.pk))
+            statements.extend(sql_drop_index(model, old_name, old._db_index))
         # si cambia el nombre, rename previo
         if old_name != name:
             statements.extend(sql_rename_field(model, old_name, name, field))
@@ -308,11 +308,12 @@ def update_field(model_cache, table, old_instance, current_instance):
     if not old or old.index != new.index:
         # usar un nombre de indice no ligado al nombre del campo permite
         # que no haya que cambiarlo si se renombra el mismo.
+        idxname = new._db_index
         if new.index == UNIQUE_INDEX:
            combined = bool(table.parent)
-           statements.extend(sql_add_unique(model, name, new.pk, combined))
+           statements.extend(sql_add_unique(model, name, idxname, combined))
         elif new.index == MULTIPLE_INDEX:
-           statements.extend(sql_add_index(model, name, new.pk))
+           statements.extend(sql_add_index(model, name, idxname))
     execute(statements)
 
 

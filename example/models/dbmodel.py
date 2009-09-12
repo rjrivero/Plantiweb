@@ -49,6 +49,12 @@ class Table(models.Model):
         """Nombre descriptivo completo"""
         return u".".join(x.name for x in self.path)
 
+    @property
+    def uniques(self):
+        unique_fields = self.field_set.filter(index=UNIQUE_INDEX)
+        unique_links  = self.link_set.filter(index=UNIQUE_INDEX)
+        return chain(unique_fields, unique_links)
+
     class Meta:
         verbose_name = _('Tabla')
         verbose_name_plural = _('Tablas')
@@ -100,11 +106,20 @@ class BaseField(models.Model):
     # (todos menos "comment")
     METAFIELDS = ['name', 'null', 'index']
 
+    @property
     def _db_name(self):
         """Devuelve el nombre que tendra el campo en el modelo"""
         return self.name
 
-    def _get_links(self):
+    @property
+    def _db_index(self):
+        """Devuelve el nombre que deben tener los indices sobre este campo"""
+        if not self.pk:
+            raise AssertionError(_("Creando indice sobre campo inexistente"))
+        return "idx%d" % self.pk
+
+    @property
+    def _links(self):
         """Devuelvo una lista de los "Links" relacionados con el campo"""
         return tuple()
 
@@ -125,7 +140,7 @@ class BaseField(models.Model):
         super(BaseField, self).save()
         if changed:
             update_field(Cache, self.table, old, self)
-            for link in self._get_links():
+            for link in self._links:
                 # actualizo tambien los campos que cogen su tipo de este
                 update_field(Cache, link.table, link.wrap(old), link)
                 Cache.invalidate(link.table)
@@ -188,6 +203,7 @@ class Field(BaseField):
         """Devuelve el nombre normal, o el dinamico"""
         return str(self.name) if not dynamic else ('_%s' % str(self.name))
 
+    @property
     def _db_name(self):
         """Modifica el nombre si tenemos asociado codigo dinamico"""
         try:
@@ -196,7 +212,8 @@ class Field(BaseField):
             dynamic = None
         return self._dynamic_name(dynamic)
 
-    def _get_links(self):
+    @property
+    def _links(self):
         """Devuelvo una lista de todos los "Links" del campo"""
         return Link.objects.filter(related=self.pk)
 
@@ -236,6 +253,13 @@ class Link(BaseField):
         other.null = self.null
         other.index = self.index
         return other
+
+    @property
+    def _db_index(self):
+        """Devuelve el nombre que deben tener los indices sobre este campo"""
+        if not self.pk:
+            raise AssertionError(_("Creando indice sobre enlace inexistente"))
+        return "lnk%d" % self.pk
 
     @property
     def field(self):

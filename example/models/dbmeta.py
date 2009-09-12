@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 """
@@ -212,7 +213,7 @@ class ModelCache(DataContainer):
             '_id': models.AutoField(primary_key=True),
             '__unicode__': model_unicode,
         }
-        attrs.update(dict((f._db_name(), f.field)
+        attrs.update(dict((f._db_name, f.field)
                      for f in obj.field_set.all()))
         attrs.update(dict((f.name, f.field)
                      for f in obj.link_set.all()))
