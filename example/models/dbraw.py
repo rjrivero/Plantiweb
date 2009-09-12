@@ -202,13 +202,13 @@ def pre_save_table(model_cache, old_instance, old_model, cur_instance):
         return
     op = old_instance.parent.pk if old_instance.parent else None 
     np = cur_instance.parent.pk if cur_instance.parent else None
-    if op != np and op is not None and np is not None:
+    if op != np and op is not None:
         # no dejo reparentar una clase con un campo unico -> antes lo
         # convierto a multiple.
         # Debe ejecutarse antes de salvar la instancia, porque es
         # posible que la tabla se haya renombrado, y en ese caso las
         # modificaciones a la base de datos fallarian.
-        for field in cur_instance.field_set.filter(index=UNIQUE_INDEX):
+        for field in cur_instance.uniques:
            field.index = MULTIPLE_INDEX
            field.save()
 
@@ -243,15 +243,15 @@ def post_save_table(model_cache, old_instance, old_model, cur_instance):
                 statements.extend(reindex_unique(cur_instance, newm, True))
             elif op is not None and np is None:
                 # La tabla tenia un parent y ahora ya no, el campo '_up'
-                # debe desaparecer
-                pk = cur_instance.pk 
-                # los campos unicos que hubiera, hay que encogerlos para ahora
-                # hacerlos unicos sin tener en cuenta el _up
-                statements.extend(reindex_unique(old_instance, oldm, False))
+                # debe desaparecer.
+                # pre_save_table ya debe haber pasado los indices
+                # unicos a multiples, no me preocupo por reindexar
                 statements.extend(sql_drop_foreign_key(pk, oldm))
                 statements.extend(sql_drop_field(oldm, '_up_id'))
                 statements.extend(sql_rename_model(oldm, newm))
             else:
+                # pre_save_table ya debe haber pasado los indices
+                # unicos a multiples, no me preocupo por reindexar
                 statements.extend(sql_drop_foreign_key(pk, oldm))
                 statements.extend(sql_rename_model(oldm, newm))
                 pmodel = model_cache[cur_instance.parent]
