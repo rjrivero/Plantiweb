@@ -13,7 +13,7 @@ import re
 from django.db import models, transaction, connection
 
 from .dblog import app_label
-from .dbmeta import ModelCache
+from .dbcache import Cache
 from .dbraw import *
 from .dbfields import *
 
@@ -28,21 +28,11 @@ class Table(models.Model):
     name    = DBIdentifierField(verbose_name=_('nombre'))
     comment = models.TextField(blank=True, verbose_name=_('comentario'))
 
-    def __init__(self, *arg, **kw):
-        super(Table, self).__init__(*arg, **kw)
-
     @property
     def path(self):
         if not self.parent:
             return (self,)
-        return tuple(chain(self.parent.path, (self,)))
-
-    @property
-    def modelname(self):
-        """Nombre para el modelo"""
-        if not self.pk:
-            raise ValueError, _('El modelo aun no ha sido salvado')
-        return "%s_%d" % (str(self.name), self.pk)
+        return chain(self.parent.path, (self,))
 
     @property
     def fullname(self):
@@ -71,20 +61,20 @@ class Table(models.Model):
         if self.pk:
             old_instance = Table.objects.get(pk=self.pk)
             old_model = Cache[old_instance]
-        pre_save_table(Cache, old_instance, old_model, self)
+        pre_save_table(old_instance, old_model, self)
         super(Table, self).save()
         # invalido antes del post-save, para que la funcion
         # tenga ya disponible el nuevo modelo.
         if old_instance is not None:
             Cache.invalidate(old_instance)
-        post_save_table(Cache, old_instance, old_model, self)
+        post_save_table(old_instance, old_model, self)
 
     @transaction.commit_on_success
     def delete(self):
         """Borra las tablas"""
         # borro antes los objetos derivados, porque una vez borrada la
         # instancia queda en un estado bastante inconsistente.
-        delete_table(Cache, self, self.pk, Cache[self])
+        delete_table(self, self.pk, Cache[self])
         super(Table, self).delete()
 
 
@@ -107,12 +97,12 @@ class BaseField(models.Model):
     METAFIELDS = ['name', 'null', 'index']
 
     @property
-    def _db_name(self):
+    def _name(self):
         """Devuelve el nombre que tendra el campo en el modelo"""
         return self.name
 
     @property
-    def _db_index(self):
+    def _idxname(self):
         """Devuelve el nombre que deben tener los indices sobre este campo"""
         if not self.pk:
             raise AssertionError(_("Creando indice sobre campo inexistente"))
@@ -139,10 +129,10 @@ class BaseField(models.Model):
                           for x in sender.METAFIELDS)
         super(BaseField, self).save()
         if changed:
-            update_field(Cache, self.table, old, self)
+            update_field(self.table, old, self)
             for link in self._links:
                 # actualizo tambien los campos que cogen su tipo de este
-                update_field(Cache, link.table, link.wrap(old), link)
+                update_field(link.table, link.wrap(old), link)
                 Cache.invalidate(link.table)
         # actualizo el modelo
         Cache.invalidate(self.table)
@@ -151,8 +141,8 @@ class BaseField(models.Model):
     def delete(self):
         old = self.__class__.objects.get(pk=self.pk)
         old_table = old.table
-        super(Basefield, self).delete()
-        delete_field(Cache, old_table, old)
+        super(BaseField, self).delete()
+        delete_field(old_table, old)
         Cache.invalidate(old_table)
 
 
@@ -199,23 +189,23 @@ class Field(BaseField):
     def default(self):
         return FIELDS[self.kind].default
 
-    def _dynamic_name(self, dynamic=False):
-        """Devuelve el nombre normal, o el dinamico"""
-        return str(self.name) if not dynamic else ('_%s' % str(self.name))
+    @property
+    def _dynamic_name(self):
+        """Devuelve el nombre dinamico del campo"""
+        return '_%s' % str(self.name)
 
     @property
-    def _db_name(self):
+    def _name(self):
         """Modifica el nombre si tenemos asociado codigo dinamico"""
         try:
-            dynamic = self.dynamic
+            return self.dynamic.name
         except Dynamic.DoesNotExist:
-            dynamic = None
-        return self._dynamic_name(dynamic)
+            return self.name
 
     @property
     def _links(self):
         """Devuelvo una lista de todos los "Links" del campo"""
-        return Link.objects.filter(related=self.pk)
+        return Link.objects.filter(related=self)
 
     def save(self):
         """Compruebo que estan definidos los campos adicionales del tipo"""
@@ -255,7 +245,7 @@ class Link(BaseField):
         return other
 
     @property
-    def _db_index(self):
+    def _idxname(self):
         """Devuelve el nombre que deben tener los indices sobre este campo"""
         if not self.pk:
             raise AssertionError(_("Creando indice sobre enlace inexistente"))
@@ -295,21 +285,52 @@ class Dynamic(models.Model):
     def __unicode__(self):
         return unicode(_('codigo de %s') % str(self.related))
 
+    @property
+    def name(self):
+        return '_%s' % str(self.related.name)
+
     @transaction.commit_on_success
     def save(self):
         created = not self.pk
         super(Dynamic, self).save()
         if created:
-            update_dynamic(Cache, self.related, True)
+            update_dynamic(self.related, True)
             Cache.invalidate(self.related.table)
 
     @transaction.commit_on_success
     def delete(self):
         related = self.related
+        update_dynamic(related, False)
         super(Dynamic, self).delete()
-        update_dynamic(Cache, related, False)
         Cache.invalidate(related.table)
 
 
-Cache = ModelCache(Table, app_label, __name__)
+# La factoria de instancias que necesita la cache
+
+def instance_factory(pk, parent_pk, name):
+    """Localiza la instancia o instancias que cumplen los criterios dados.
+
+    Tal como se indica en la descripcion del tipo ModelCache, esta
+    factoria se comporta del modo siguiente:
+
+      - si pk != None, ignora el resto de argumentos y devuelve
+        la instancia indicada por la pk.
+      - En otro caso, si name != None, devuelve una unica instancia
+        cuyo parent es el indicado por parent_pk, y cuyo nombre es
+        el indicado por name.
+      - En el resto de casos, devuelve una lista con todas las
+        instancias cuya instancia padre sea la indicada por parent_pk.
+
+    Si no se encuentra ninguna instancia que cumpla los requisitos, se
+    lanza un KeyError
+    """
+    try:
+        if pk is not None:
+            return Table.objects.get(pk=pk)
+        elif name is not None:
+            return Table.objects.get(parent=parent_pk, name=name)
+        else:
+            return Table.objects.filter(parent=parent_pk)
+    except Table.DoesNotExist:
+        raise KeyError(pk or name or parent_pk)
 

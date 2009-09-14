@@ -3,6 +3,8 @@
 
 
 from itertools import chain
+from copy import copy
+
 from django.db import models, backend
 from django.db.models import Count
 
@@ -72,12 +74,7 @@ def _add(one, other):
 
 class DJSet(models.query.QuerySet):
 
-    """QuerySet que implementa la interfaz de los DataSets
-
-    Cuidado! solo esta pensado para ser usado con los metodos que se
-    definen en esta clase. Si se usan directamente los metodos heredados de
-    QuerySet, los resultados pueden ser inconsistentes.
-    """
+    """QuerySet que implementa la interfaz de los DataSets"""
 
     def __init__(self, *arg, **kw):
         super(DJSet, self).__init__(*arg, **kw)
@@ -89,33 +86,35 @@ class DJSet(models.query.QuerySet):
  
     def __call__(self, **kw):
         """Filtra el DJSet acorde al criterio especificado"""
-        domd = self._type._DOMD
-        base, pos, neg, agg = self, dict(), dict(), self._agg
-        for key, val in kw.iteritems():
-            if not hasattr(val, '__call__'):
-                val = (Deferrer() == val)
-            if key in domd.attribs:
-                p, crit, val = val(key)
-            else:
-                child = domd.children[key]
-                agg   = True
-                refer = child._meta.object_name.lower()
-                label = '%s_count' % key
-                base  = base.annotate(**{label: Count(refer)})
-                p, crit, val = val(label)
-            if p:
-                pos[crit] = val
-            else:
-                neg[crit] = val
-        if pos:
-            base = base.filter(**pos)
-        if neg:
-            base = base.exclude(**neg)
-        pos.update(self._pos)
-        neg.update(self._neg)
-        base._agg = agg
-        base._pos = pos
-        base._neg = neg
+        base = self
+        if kw:
+            pos, neg, agg = dict(), dict(), self._agg
+            domd = self._type._DOMD
+            for key, val in kw.iteritems():
+                if not hasattr(val, '__call__'):
+                    val = (Deferrer() == val)
+                if key in domd.attribs:
+                    p, crit, val = val(key)
+                else:
+                    child = domd.children[key]
+                    agg   = True
+                    refer = child._meta.object_name.lower()
+                    label = '%s_count' % key
+                    base  = base.annotate(**{label: Count(refer)})
+                    p, crit, val = val(label)
+                if p:
+                    pos[crit] = val
+                else:
+                    neg[crit] = val
+            if pos:
+                base = base.filter(**pos)
+            if neg:
+                base = base.exclude(**neg)
+            base._agg = agg
+            base._pos = copy(self._pos)
+            base._neg = copy(self._neg)
+            base._pos.update(pos)
+            base._neg.update(neg)
         return base
 
     def __getattr__(self, attrib):
@@ -191,4 +190,15 @@ class DJModel(DataType(models.Model)):
 
     def __add__(self, other):
         return _add(self, other)
+
+    def _choices(self, attr):
+        """Devuelve una lista de posibles valores para el objeto"""
+        return self._type._DOMD.filters[attr](self)
+
+    @classmethod
+    def invalidate(cls, attr):
+        try:
+            cls._DOMD.children.pop(attr)
+        except KeyError:
+            pass
 

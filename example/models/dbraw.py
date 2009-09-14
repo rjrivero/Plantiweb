@@ -12,41 +12,15 @@ from copy import copy
 
 from django.db import models, connection
 from django.core.management import sql, color
-# HACKISH - HACKISH - HACKISH
-from django.db.models.loading import cache
 
 from .dblog import ChangeLog
+from .dbcache import MetaData, Cache
 
 
 # Posibles tipos de indice
 NO_INDEX       = 0
 UNIQUE_INDEX   = 1
 MULTIPLE_INDEX = 2
-
-
-def create_model(name, app_label, module, attrs=None, bases=(models.Model,)):
-    """Crea un modelo dinamicamente"""
-    class Meta:
-        pass
-    setattr(Meta, 'app_label', app_label)
-    setattr(Meta, 'db_table', '%s_%s' % (app_label, name))
-    attrs = attrs or dict()
-    attrs.update({'Meta': Meta, '__module__': module})
-    # HACKISH - HACKISH - HACKISH
-    #
-    # Django guarda una cache de modelos, y cuando se intenta crear uno que ya
-    # esta en cache, en vez de actualizar la cache con el modelo nuevo,
-    # devuelve el modelo antiguo.
-    #
-    # Esto es muy malo para nuestros propositos, asi que a continuacion pongo
-    # un hack que elimina el modelo de la cache, si existia
-    app_cache = cache.app_models.get(app_label, dict())
-    try:
-        del(app_cache[name.lower()])
-    except KeyError:
-        pass
-    # Ahora ya puedo crear el modelo
-    return type(name, bases, attrs)
 
 
 def sql_add_model(model, known=None):
@@ -86,8 +60,8 @@ def sql_inline_field(model, name, field):
     # HACKISH
     # El campo que creamos esta en la segunda linea del SQL (la primera es el
     # CREATE TABLE, la segunda la clave primaria)
-    testtype = create_model("test", model._meta.app_label, model.__module__,
-                {name: field})
+    testtype = MetaData.create_model("test", {name: field}, 
+                   model._meta.app_label, model.__module__, models.Model)
     return sql_add_model(testtype)[0].split("\n")[2].strip()
 
 
@@ -96,7 +70,7 @@ def sql_add_field(model, name, field):
     inline = sql_inline_field(model, name, field)
     sql = ["ALTER TABLE %s ADD %s" % (model._meta.db_table, inline)]
     # Ya no gestionamos los indices con django, sino con SQL.
-    #if field.db_index:
+    #if field.index:
     #    sql.extend(sql_add_index(model, name, field))
     return sql
 
@@ -175,7 +149,7 @@ def execute(query_list):
         ChangeLog(cursor=cursor, sql=sql, params=params).save()
 
 
-def delete_table(model_cache, instance, pk, model):
+def delete_table(instance, pk, model):
     """Borra una tabla de la base de datos"""
     statements = list()
     if instance.parent:
@@ -190,13 +164,13 @@ def reindex_unique(instance, model, combined):
     """Elimina y vuelve a crear los indices unicos de una tabla"""
     statements = list()
     for field in instance.uniques:
-        name, idxname = field._db_name, field._db_index
+        name, idxname = field._name, field._idxname
         statements.extend(sql_drop_index(model, name, idxname))
         statements.extend(sql_add_unique(model, name, idxname, combined))
     return statements
 
 
-def pre_save_table(model_cache, old_instance, old_model, cur_instance):
+def pre_save_table(old_instance, old_model, cur_instance):
     """Actualiza o modifica una tabla de la base de datos"""
     if not old_instance:
         return
@@ -213,15 +187,15 @@ def pre_save_table(model_cache, old_instance, old_model, cur_instance):
            field.save()
 
 
-def post_save_table(model_cache, old_instance, old_model, cur_instance):
+def post_save_table(old_instance, old_model, cur_instance):
     """Actualiza o modifica una tabla de la base de datos"""
-    oldm, newm, pk = old_model, model_cache[cur_instance], cur_instance.pk
+    oldm, newm, pk = old_model, Cache[cur_instance], cur_instance.pk
     statements = list()
     if not old_instance:
-        known = list(model_cache[x] for x in cur_instance.path)
+        known = list(Cache[x] for x in cur_instance.path)
         statements.extend(sql_add_model(newm, known))
         if cur_instance.parent:
-            pmodel = model_cache[cur_instance.parent]
+            pmodel = Cache[cur_instance.parent]
             statements.extend(sql_add_foreign_key(newm, pk, pmodel))
     else:
         # si cambia la tabla padre hay que eliminar las foreign keys antiguas
@@ -233,7 +207,7 @@ def post_save_table(model_cache, old_instance, old_model, cur_instance):
                 # La tabla que se habia creado no tenia campo _up_id porque su
                 # modelo no tenia clave primaria. Tengo que modificar la tabla
                 # para gregar ese campo.
-                pmodel = model_cache[cur_instance.parent]
+                pmodel = Cache[cur_instance.parent]
                 field = newm._meta.get_field('_up')
                 statements.extend(sql_add_field(oldm, '_up', field))
                 statements.extend(sql_rename_model(oldm, newm))
@@ -254,25 +228,25 @@ def post_save_table(model_cache, old_instance, old_model, cur_instance):
                 # unicos a multiples, no me preocupo por reindexar
                 statements.extend(sql_drop_foreign_key(pk, oldm))
                 statements.extend(sql_rename_model(oldm, newm))
-                pmodel = model_cache[cur_instance.parent]
+                pmodel = Cache[cur_instance.parent]
                 statements.extend(sql_add_foreign_key(newm, pk, pmodel))
         else:
             statements.extend(sql_rename_model(oldm, newm))
     execute(statements)
 
 
-def delete_field(model_cache, table, field):
+def delete_field(table, field):
     """Borra un campo de una tabla"""
     try:
-        execute(sql_drop_field(model_cache[table], field._db_name))
+        execute(sql_drop_field(Cache[table], field._name))
     except Exception:
         pass
 
 
-def update_field(model_cache, table, old_instance, current_instance):
+def update_field(table, old_instance, current_instance):
     """Actualiza o modifica un campo de una tabla de la base de datos"""
     old, new = old_instance, current_instance
-    model, name = model_cache[table], new._db_name
+    model, name = Cache[table], new._name
     if not old:
         if new.null:
             statements = sql_add_field(model, name, new.field)
@@ -282,20 +256,20 @@ def update_field(model_cache, table, old_instance, current_instance):
             # Por eso, creamos el campo como NULL y luego lo modificamos.
             fakeold = copy(new) # no usar "old", porque si no
             fakeold.null = True # no se crean los indices
-            fakename, fakefield = fakeold._db_name, fakeold.field
+            fakename, fakefield = fakeold._name, fakeold.field
             statements = sql_add_field(model, fakename, fakefield)
             field, default = new.field, new.default
             statements.extend(sql_update_null(model, name, field, default))
             statements.extend(sql_modify_field(model, name, field))
     else:
-        old_name, field = old._db_name, new.field
+        old_name, field = old._name, new.field
         statements = list()
         # si cambia la tabla, mal rollo -> lanzamos ValueError
         if old.table != new.table:
             raise ValueError(_('No esta permitido cambiar la tabla'))
         # si se eliminan indices, los quito.
         if old.index != new.index and old.index:
-            statements.extend(sql_drop_index(model, old_name, old._db_index))
+            statements.extend(sql_drop_index(model, old_name, old._idxname))
         # si cambia el nombre, rename previo
         if old_name != name:
             statements.extend(sql_rename_field(model, old_name, name, field))
@@ -308,7 +282,7 @@ def update_field(model_cache, table, old_instance, current_instance):
     if not old or old.index != new.index:
         # usar un nombre de indice no ligado al nombre del campo permite
         # que no haya que cambiarlo si se renombra el mismo.
-        idxname = new._db_index
+        idxname = new._idxname
         if new.index == UNIQUE_INDEX:
            combined = bool(table.parent)
            statements.extend(sql_add_unique(model, name, idxname, combined))
@@ -317,8 +291,8 @@ def update_field(model_cache, table, old_instance, current_instance):
     execute(statements)
 
 
-def update_dynamic(model_cache, field, dynamic):
-    old_name = field._dynamic_name(not dynamic)
-    new_name = field._dynamic_name(dynamic)
-    execute(sql_rename_field(model_cache[field.table], old_name,
+def update_dynamic(field, dynamic):
+    old_name = field.name
+    new_name = field._dynamic_name
+    execute(sql_rename_field(Cache[field.table], old_name,
                              new_name, field.field))

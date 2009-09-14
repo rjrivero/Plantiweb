@@ -98,3 +98,10 @@ class Profile(object):
     def fields(self, model):
         return self._cached(self.fields, model._DOMD.pk, 'fields')
 
+    def identity(self, model):
+        uniques = Table.object.get(pk=model._DOMD.pk).uniques
+        uniques = set(f.name for f in uniques)
+        for item in self.summary(model):
+            if item in uniques:
+                return item
+
