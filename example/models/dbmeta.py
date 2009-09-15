@@ -93,7 +93,7 @@ class MetaData(MD):
         """
         filters = list()
         for field in instance.link_set.all():
-            fields.add(field.name)
+            fields.add(field._name)
             attrs[field._name]  = field.field
             filters.append(field)
         return filters
@@ -119,7 +119,7 @@ class MetaData(MD):
     def _add_filters(self, instance, filters):
         self.filters = dict()
         for field in filters:
-            name, relname = field.name, field.related.name
+            name, relname = field._name, field.related.name
             source_id = '<%s.%s.filter>' % (field.table.fullname, name)
             code = compile(field.filter, source_id, 'eval')
             def run_filter(self):

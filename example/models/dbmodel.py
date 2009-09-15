@@ -230,6 +230,7 @@ class Link(BaseField):
     table   = models.ForeignKey(Table)
     related = models.ForeignKey(Field, verbose_name=_('ligado a'),
                 blank=True, null=True)
+    group   = models.CharField(max_length=32, verbose_name=_('grupo'))
     filter  = models.CharField(max_length=1024, verbose_name=_('filtro'))
 
     # Campos que provocan cambios en las tablas generadas
@@ -243,6 +244,11 @@ class Link(BaseField):
         other.null = self.null
         other.index = self.index
         return other
+
+    @property
+    def _name(self):
+        return (self.name if not self.group
+                          else "%s_%s" % (self.name, self.group))
 
     @property
     def _idxname(self):
@@ -263,7 +269,7 @@ class Link(BaseField):
         verbose_name = _('campo de enlace')
         verbose_name_plural = _('campos de enlace')
         app_label = app_label
-        unique_together = ('table', 'name')
+        unique_together = ('table', 'name', 'group')
 
     def __unicode__(self):
         return unicode(_("enlace %s a %s") % (self.name, str(self.related)))
