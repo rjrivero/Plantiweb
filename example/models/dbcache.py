@@ -212,7 +212,7 @@ class ModelCache(DataContainer):
         finally:
             loop.remove(pk)
 
-    def __call__(self, instance_pk, parent_pk, instance_name):
+    def __call__(self, instance_pk=None, parent_pk=None, instance_name=None):
         item = self.instance_factory(instance_pk, parent_pk, instance_name)
         if instance_pk or instance_name:
             # el resultado debe ser una unica instancia

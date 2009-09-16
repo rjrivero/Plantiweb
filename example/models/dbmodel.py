@@ -29,7 +29,15 @@ class Table(models.Model):
     comment = models.TextField(blank=True, verbose_name=_('comentario'))
 
     @property
+    def ancestors(self):
+        "Devuelve la lista de ancestros, desde el mas cercano hasta el raiz"""
+        if not self.parent:
+            return tuple()
+        return chain((self.parent,), self.parent.ancestors)
+
+    @property
     def path(self):
+        "Devuelve la ruta completa de tablas desde la raiz hasta esta"""
         if not self.parent:
             return (self,)
         return chain(self.parent.path, (self,))
@@ -173,6 +181,7 @@ class Field(BaseField):
 
     @property
     def field(self):
+        """Construye un models.Field con los campos del objeto"""
         attrs = FIELDS[self.kind]
         ftype = attrs.field
         fparm = dict((x, getattr(self, y))
@@ -187,6 +196,7 @@ class Field(BaseField):
 
     @property
     def default(self):
+        """Devuelve el valor por defecto del field"""
         return FIELDS[self.kind].default
 
     @property
@@ -230,19 +240,18 @@ class Link(BaseField):
     table   = models.ForeignKey(Table)
     related = models.ForeignKey(Field, verbose_name=_('ligado a'),
                 blank=True, null=True)
-    group   = models.CharField(max_length=32, verbose_name=_('grupo'))
-    filter  = models.CharField(max_length=1024, verbose_name=_('filtro'))
+    group   = models.CharField(max_length=32, verbose_name=_('grupo'),
+                blank=True, null=True)
+    #filter  = models.CharField(max_length=1024, verbose_name=_('filtro'))
 
     # Campos que provocan cambios en las tablas generadas
-    METAFIELDS = list(chain(BaseField.METAFIELDS, ['table', 'related']))
+    METAFIELDS = list(chain(BaseField.METAFIELDS,
+                            ['table', 'group', 'related']))
 
     def wrap(self, field):
         """Devuelve un campo actualizado con los atributos del link"""
-        other = copy(field)
-        other.table = self.table
-        other.name = self.name
-        other.null = self.null
-        other.index = self.index
+        other = copy(self)
+        other.related = field
         return other
 
     @property
@@ -259,11 +268,11 @@ class Link(BaseField):
 
     @property
     def field(self):
-        return self.wrap(self.related).field
+        return self.related.field
 
     @property
     def default(self):
-        return FIELDS[self.related.kind].default
+        return self.related.default
 
     class Meta:
         verbose_name = _('campo de enlace')

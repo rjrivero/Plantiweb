@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 from django.contrib import admin
@@ -11,7 +12,8 @@ class FieldInline(admin.TabularInline):
 
 
 class LinkInline(admin.TabularInline):
-    model = Link
+    model = Link   
+    fields = ['name', 'group', 'related', 'null', 'index', 'comment']
     extra = 2
 
 
