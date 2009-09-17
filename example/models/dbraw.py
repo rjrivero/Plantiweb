@@ -291,8 +291,15 @@ def update_field(table, old_instance, current_instance):
     execute(statements)
 
 
-def update_dynamic(field, dynamic):
-    old_name = field.name
-    new_name = field._dynamic_name
+def update_dynamic(field, dynamic, save=True):
+    """Actualiza el nombre de un campo.
+
+    Si save == True, pasa del nombre normal al dinamico.
+    Si save == False, pasa del nombre dinamico al normal.
+    """
+    if save:
+        old_name, new_name = field.name, dynamic.name
+    else:
+        old_name, new_name = dynamic.name, field.name
     execute(sql_rename_field(Cache[field.table], old_name,
                              new_name, field.field))

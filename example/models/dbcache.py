@@ -32,6 +32,7 @@ class ModelChildren(dict):
     def __init__(self, pk):
         dict.__init__(self)
         self.pk = pk
+        self.full = False
 
     def __getitem__(self, item):
         # intento leer el item del diccionario
@@ -42,10 +43,22 @@ class ModelChildren(dict):
         # si falla, intento cargar el objeto de la base de datos
         return self.setdefault(item, Cache(None, self.pk, item))
 
-    def fill(self):
+    def all(self):
         """Carga en cache todos los modelos hijos de este"""
-        for model in Cache(None, self.pk):
-            self[model._DOMD.name] = model
+        if not self.full:
+            for model in Cache(None, self.pk):
+                self[model._DOMD.name] = model
+            self.full = True
+        return self
+
+    def invalidate(self, attr=None):
+        """Invalida un atributo"""
+        if not attr:
+            self.clear()
+        else:
+            try: del(self[attr])
+            except KeyError: pass
+        self.full = False
 
 
 class RootType(DataType(object)):
@@ -61,14 +74,11 @@ class RootType(DataType(object)):
     def invalidate(self, attr=None):
         """Invalida la cache de objetos, o el item indicado"""
         children = self._type._DOMD.children
-        if attr is None:
-            for attr in children.keys():
-                delattr(self, attr)
-            children.clear()
-        elif attr in children.keys():
-            print "INVALIDANDO ATRIBUTO %s" % attr
-            delattr(self, attr)
-            del(children[attr])
+        attrs = (attr,) if attr else children.keys()
+        for attr in attrs:
+            try: delattr(self, attr)
+            except: pass
+        children.invalidate(attr)
 
 
 class RootMeta(MD):
@@ -235,15 +245,13 @@ class ModelCache(DataContainer):
             model = self.pop(instance.pk)
             if model:
                 domd = model._DOMD
-                parent = domd.parent
-                attr = domd.name
+                parent, top = domd.parent, domd.top
                 # elimino la entrada de "children" en el ancestro
                 # (solo si el ancestro no es el root; en otro caso, basta
                 # con el self.data.invalidate que se hace abajo)
-                if parent._DOMD.pk:
-                    parent.invalidate(attr)
-                # invalido los datos top-level.
-                self.data.invalidate(domd.top._DOMD.name)
+                if parent != top:
+                    parent._DOMD.children.invalidate(domd.name)
+                self.data.invalidate(top._DOMD.name)
  
     def pop(self, pk):
         """Elimina un modelo y sus descendientes"""

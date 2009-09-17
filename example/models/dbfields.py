@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 
@@ -9,6 +10,9 @@ except ImportError:
 import re
 
 from django.db import models
+
+
+DB_IDENTIFIER_LENGTH = 16
 
 
 class DBIdentifierField(models.CharField):

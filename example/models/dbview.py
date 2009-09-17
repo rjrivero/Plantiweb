@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 
@@ -99,7 +100,7 @@ class Profile(object):
         return self._cached(self.fields, model._DOMD.pk, 'fields')
 
     def identity(self, model):
-        uniques = Table.object.get(pk=model._DOMD.pk).uniques
+        uniques = Table.objects.get(pk=model._DOMD.pk).uniques
         uniques = set(f.name for f in uniques)
         for item in self.summary(model):
             if item in uniques:

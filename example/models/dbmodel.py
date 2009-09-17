@@ -88,9 +88,16 @@ class Table(models.Model):
 
 class BaseField(models.Model):
 
-    """Modelo de campo comun para Field y Link"""
+    """Modelo de campo comun para Field y Link
 
-    name    = DBIdentifierField(verbose_name=_('nombre'))
+    En este modelo no se define la propiedad name, porque su implementacion
+    es distinta en Field (campo de la base de datos) y Link (propiedad).
+
+    Sin embargo, si que es necesario que las clases derivadas definan una
+    propiedad "name" con el nombre que se usara para acceder al campo en el
+    modelo.
+    """
+
     null    = models.BooleanField(verbose_name=_('NULL'))
     index   = models.IntegerField(verbose_name=_('INDEX'), choices=(
                       (NO_INDEX,       _('sin indice')),
@@ -101,31 +108,39 @@ class BaseField(models.Model):
                                verbose_name=_('comentario'))
 
     # Campos que provocan cambios en las tablas generadas
-    # (todos menos "comment")
+    # (todos menos "comment", y se incluye "name" porque todas las
+    # clases derivadas deben implementarlo)
     METAFIELDS = ['name', 'null', 'index']
 
     @property
     def _name(self):
-        """Devuelve el nombre que tendra el campo en el modelo"""
+        """Devuelve el nombre que tendra el campo en la base de datos"""
         return self.name
 
     @property
     def _idxname(self):
-        """Devuelve el nombre que deben tener los indices sobre este campo"""
+        """Devuelve el nombre que deben tener los indices sobre este campo.
+        
+        Varias clases derivadas de esta pueden definir campos de diverso tipo
+        que han de incluirse en el modelo, y que pueden estar indexados.
+
+        Los nombres de los indices de un modelo no deben coincidir entre si,
+        de manera que cada clase derivada debe sobrecargar esta funcion y
+        definir su propia nomenclatura para los indices.
+        """
         if not self.pk:
             raise AssertionError(_("Creando indice sobre campo inexistente"))
         return "idx%d" % self.pk
-
-    @property
-    def _links(self):
-        """Devuelvo una lista de los "Links" relacionados con el campo"""
-        return tuple()
 
     class Meta:
         abstract = True
 
     def __unicode__(self):
         return unicode(_("<%s> %s") % (unicode(self.table), self.name))
+
+    def _on_changed(self, old):
+        """Se invoca cuando se salva un campo modificado"""
+        pass
 
     @transaction.commit_on_success
     def save(self):
@@ -138,10 +153,7 @@ class BaseField(models.Model):
         super(BaseField, self).save()
         if changed:
             update_field(self.table, old, self)
-            for link in self._links:
-                # actualizo tambien los campos que cogen su tipo de este
-                update_field(link.table, link.wrap(old), link)
-                Cache.invalidate(link.table)
+            self._on_changed(old)
         # actualizo el modelo
         Cache.invalidate(self.table)
 
@@ -167,8 +179,10 @@ class Field(BaseField):
     """Campo tipado de la base de datos"""
     
     objects = CatchManager()
+    name    = DBIdentifierField(verbose_name=_('nombre'))
     table   = models.ForeignKey(Table)
-    kind    = models.CharField(max_length=32, verbose_name=_('tipo'),
+    kind    = models.CharField(max_length=32,
+                  verbose_name=_('tipo'),
                   choices=list(
                       (name, _(x.verbose)) for name, x in FIELDS.iteritems()))
     # solo para los campos tipo CharField
@@ -200,11 +214,6 @@ class Field(BaseField):
         return FIELDS[self.kind].default
 
     @property
-    def _dynamic_name(self):
-        """Devuelve el nombre dinamico del campo"""
-        return '_%s' % str(self.name)
-
-    @property
     def _name(self):
         """Modifica el nombre si tenemos asociado codigo dinamico"""
         try:
@@ -212,10 +221,13 @@ class Field(BaseField):
         except Dynamic.DoesNotExist:
             return self.name
 
-    @property
-    def _links(self):
-        """Devuelvo una lista de todos los "Links" del campo"""
-        return Link.objects.filter(related=self)
+    def _on_changed(self, old):
+        """Actualiza los Links si se salvan cambios en el campo"""
+        for link in Link.objects.filter(related=self):
+            # actualizo tambien los campos que cogen su tipo de este
+            update_field(link.table, link.wrap(old), link)
+            Cache.invalidate(link.table)
+        super(Field, self)._on_changed(old)
 
     def save(self):
         """Compruebo que estan definidos los campos adicionales del tipo"""
@@ -236,17 +248,28 @@ class Link(BaseField):
 
     """Campo anclado a un campo tipado, hereda sus caracteristicas"""
 
-    objects = CatchManager()
-    table   = models.ForeignKey(Table)
-    related = models.ForeignKey(Field, verbose_name=_('ligado a'),
-                blank=True, null=True)
-    group   = models.CharField(max_length=32, verbose_name=_('grupo'),
-                blank=True, null=True)
+    objects  = CatchManager()
+    basename = DBIdentifierField(verbose_name=_('nombre'))
+    table    = models.ForeignKey(Table)
+    related  = models.ForeignKey(Field, verbose_name=_('ligado a'),
+                   blank=True, null=True)
+    group    = models.CharField(max_length=DB_IDENTIFIER_LENGTH,
+                   verbose_name=_('grupo'),
+                   blank=True, null=True)
     #filter  = models.CharField(max_length=1024, verbose_name=_('filtro'))
 
     # Campos que provocan cambios en las tablas generadas
     METAFIELDS = list(chain(BaseField.METAFIELDS,
-                            ['table', 'group', 'related']))
+                            ['table', 'related']))
+
+    @property
+    def name(self):
+        """Nombre compuesto por basename y grupo.
+        Reemplaza al atributo "name" de BaseField
+        """
+        return (self.basename if not self.group
+                          else u"%s_%s" % (self.basename, self.group))
+    _name = name
 
     def wrap(self, field):
         """Devuelve un campo actualizado con los atributos del link"""
@@ -255,16 +278,19 @@ class Link(BaseField):
         return other
 
     @property
-    def _name(self):
-        return (self.name if not self.group
-                          else "%s_%s" % (self.name, self.group))
-
-    @property
     def _idxname(self):
         """Devuelve el nombre que deben tener los indices sobre este campo"""
         if not self.pk:
             raise AssertionError(_("Creando indice sobre enlace inexistente"))
         return "lnk%d" % self.pk
+
+    @property
+    def kind(self):
+        return self.related.kind
+
+    @property
+    def len(self):
+        return self.related.len
 
     @property
     def field(self):
@@ -278,7 +304,7 @@ class Link(BaseField):
         verbose_name = _('campo de enlace')
         verbose_name_plural = _('campos de enlace')
         app_label = app_label
-        unique_together = ('table', 'name', 'group')
+        unique_together = ('table', 'basename', 'group')
 
     def __unicode__(self):
         return unicode(_("enlace %s a %s") % (self.name, str(self.related)))
@@ -309,15 +335,14 @@ class Dynamic(models.Model):
         created = not self.pk
         super(Dynamic, self).save()
         if created:
-            update_dynamic(self.related, True)
+            update_dynamic(self.related, self, True)
             Cache.invalidate(self.related.table)
 
     @transaction.commit_on_success
     def delete(self):
-        related = self.related
-        update_dynamic(related, False)
+        update_dynamic(self.related, self, False)
         super(Dynamic, self).delete()
-        Cache.invalidate(related.table)
+        Cache.invalidate(self.related.table)
 
 
 # La factoria de instancias que necesita la cache
@@ -348,4 +373,3 @@ def instance_factory(pk, parent_pk, name):
             return Table.objects.filter(parent=parent_pk)
     except Table.DoesNotExist:
         raise KeyError(pk or name or parent_pk)
-
