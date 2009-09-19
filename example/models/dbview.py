@@ -12,6 +12,9 @@ from .dbfields import *
 from .dbmodel import Table
 
 
+DEFAULT_VIEW = 'Default'
+
+
 class View(models.Model):
 
     """MetaTabla que define las vistas de las tablas creadas"""
@@ -60,49 +63,3 @@ class UserView(models.Model):
         verbose_name_plural = _('vistas de usuarios')
         app_label = app_label
         unique_together = ('user', 'view')
-
-
-class Profile(object):
-
-    """Filtra los atributos accesibles de un objeto"""
-
-    def __init__(self, userview):
-        try:
-            if userview:
-                self.view = userview.view.pk
-            else:
-                self.view = View.objects.get(name__iexact='Default').pk
-        except View.DoesNotExist:
-            self.view = None
-        self.invalidate()
-
-    def invalidate(self):
-        self.version = ChangeLog.objects.current().pk
-        self.fields = dict()
-        self.summaries = dict()
-
-    def _cached(self, d, pk, field):
-        try:
-            return d[pk] 
-        except KeyError:
-            try:
-                item = TableView.get(view_id=self.view, table_id=pk)
-            except (TableView.DoesNotExist):
-                item = TokenTuple("")
-            else:
-                item = getattr(item, field)
-            return d.setdefault(pk, item)
-
-    def summary(self, model):
-        return self._cached(self.summaries, model._DOMD.pk, 'summary')
-
-    def fields(self, model):
-        return self._cached(self.fields, model._DOMD.pk, 'fields')
-
-    def identity(self, model):
-        uniques = Table.objects.get(pk=model._DOMD.pk).uniques
-        uniques = set(f.name for f in uniques)
-        for item in self.summary(model):
-            if item in uniques:
-                return item
-

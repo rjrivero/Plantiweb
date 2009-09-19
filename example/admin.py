@@ -13,7 +13,7 @@ class FieldInline(admin.TabularInline):
 
 class LinkInline(admin.TabularInline):
     model = Link   
-    fields = ['name', 'group', 'related', 'null', 'index', 'comment']
+    fields = ['basename', 'group', 'related', 'null', 'index', 'comment']
     extra = 2
 
 

@@ -1,10 +1,12 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 
 from .dblog import RevisionLog, ChangeLog, app_label
-from .dbmodel import Table, Link, Field, Dynamic, Cache
-from .dbview import TableView, UserView, View, Profile
+from .dbbase import Deferrer
+from .dbmodel import Table, Link, Field, Dynamic
+from .dbview import TableView, UserView, View
 
 from .dbcache import Cache
 from .dbmodel import instance_factory

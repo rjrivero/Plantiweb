@@ -22,9 +22,17 @@ from .dbcache import MetaData as MD
 from .dbmodel import Dynamic
 
 
+def to_unicode(self):
+    """Funcion __unicode__ de los modelos generados"""
+    domd = self._type._DOMD
+    atts = domd.identity or domd.fields
+    return u", ".join(u"%s: %s" % (x, repr(self.get(x, None))) for x in atts)
+
+
 class MetaData(MD):
 
     """Metadatos asociados a una tabla de cliente"""
+
 
     def __init__(self, instance):
 
@@ -50,40 +58,47 @@ class MetaData(MD):
                 return Cache.data
         pk, name = instance.pk, instance.name
         fields   = set()
+        dbfields = dict()
         attrs    = {
             '_up': up,
             '_id': models.AutoField(primary_key=True),
+
         }
         # analizo los campos normales y saco campos dinamicos.
-        dynamics = self._get_fields(instance, fields, attrs)
+        dynamics = self._get_fields(instance, fields, attrs, dbfields)
         # analizo los campos enlazados y saco filtros.
         filters  = self._get_links(instance, fields, attrs)
         # Creo metadata y modelo!
         super(MetaData, self).__init__(pk, name, attrs, parent)
-        self.attribs = fields
+        self.attribs, self.dbattribs = fields, dbfields
+        self.identity = tuple(x.name for x in instance.uniques)
+        setattr(self._type, '__unicode__', to_unicode)
         # agrego propiedades para los campos dinamicos
         self._add_dynamics(instance, dynamics)
         # agrego filtros
         self._add_filters(instance, filters)
 
-    def _get_fields(self, instance, fields, attrs):
+    def _get_fields(self, instance, fields, attrs, dbfields):
         """Lee los Fields y crea una lista de campos dinamicos.
         Analiza el conjunto de campos de la instancia y
         pre-procesa los campos dinamicos:
           - Agrega el nombre y tipo de campo a "attrs"
           - Agrega el nombre de la propiedad dinamica a "fields"
+          - Agrega el mapeo estatico -> dinamico a "dbfields"
           - Devuelve una lista de tuplas (Field, Dynamic)
         """
         dynamics = list()
         for field in instance.field_set.all():
-            fields.add(field.name)
-            attrs[field._name] = field.field
+            name, _name = field.name, field._name
+            attrs[_name] = field.field
+            fields.add(name)
+            dbfields[name] = _name
             try:
                 dynamic = field.dynamic
             except Dynamic.DoesNotExist:
                 pass
             else:
-                source_id = '<%s.%s.code>' % (instance.fullname, field.name)
+                source_id = '<%s.%s.code>' % (instance.fullname, name)
                 code = compile(dynamic.code, source_id, 'exec')
                 dynamics.append((field, code))
         return dynamics
@@ -227,8 +242,6 @@ class MetaData(MD):
             #        yield (getattr(item, relname), item)
             #self.filters[name] = run_filter
 
-
-# Amplio la cache definiendo la factoria de modelos
 
 def model_factory(instance):
     return MetaData(instance)._type

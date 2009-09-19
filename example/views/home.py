@@ -10,28 +10,37 @@ from django.template import RequestContext
 from django.contrib.auth.decorators import login_required
 
 from .base import with_profile
-from ..models import Field, Link
+from ..models import Field, Link, Table
 
 
 DEFAULT_HIST_LEN = 10
 
 
-class HomeView(dict):
+class Filter(object):
 
-    """Prepara la vista raiz"""
+    """Representa un criterio de filtrado sobre una tabla"""
+
+    MODEL_NOT_FOUND = _("El modelo con pk = '%s' no existe")
+    MODEL_NOT_ALLOWED = _("No esta autorizado a acceder al modelo '%s'")
+    FTYPE_NOT_FOUND = _("El id de campo '%s' no es valido")
+    EMPTY_FTYPE = _("El id de campo no puede estar vacio")
+    FIELD_NOT_FOUND = _("No existe el campo con id '%s'")
+    FIELD_NOT_ALLOWED = _("No esta autorizado a ver el campo '%s'")
+    NO_OPERATORS = _("No existen operadores para el tipo de campo '%s'")
+    OP_NOT_FOUND = _("No existe el operador '%s'")
 
     STRING_OPERATORS = {
         'cualquiera': (None, _('cualquiera'), None),
-        '__iexact': ('__iexact', _('igual'), str),
-        '__istartswith': ('__istartswith', _('empieza por'), str),
-        '__iendswith': ('__iendswith', _('termina en'), str),
+        'exact': ('__iexact', _('igual'), str),
+        'startswith': ('__istartswith', _('empieza por'), str),
+        'endswith': ('__iendswith', _('termina en'), str),
     }
 
     INT_OPERATORS = {
         'cualquiera': (None, _('cualquiera'), None),
-        '__exact': ('__exact', _('igual'), int),
-        '__gt': ('__gt', _('mayor'), int),
-        '__lt': ('__lt', _('menor'), int),
+        'exact': ('__exact', _('igual'), int),
+        'gt': ('__gt', _('mayor'), int),
+        'lt': ('__lt', _('menor'), int),
     }
 
     OPERATORS = {
@@ -39,7 +48,88 @@ class HomeView(dict):
         'IPAddressField': STRING_OPERATORS,
         'IntegerField': INT_OPERATORS,
     }
- 
+
+    def resolve_field(self, model, ff):
+        """Obtiene el campo del modelo identificado por ff.
+
+        ff es un identificador de campo de una tabla. Puede referirse
+        a un campo normal (Field), a un campo tipado (Link), o a una
+        subtabla (un Child).
+
+        Esta funcion reconoce el formato de ff, busca el campo al
+        que se refiere, y localiza el objeto.
+
+        Devuelve una tupla (identificador de tipo, objeto)
+        """
+        if len(ff) < 2:
+            raise ValueError(Filter.EMPTY_FTYPE)
+        flag, pk = ff[0], int(ff[1:])
+        if flag == 'F':
+            fmodel, fobjects = Field, Field.objects
+        elif flag == 'L':
+            fmodel, fobjects = Link, Link.objects
+        elif flag == 'C':
+            fmodel = Table
+            fobjects = Table.objects.filter(parent=model._DOMD.pk)
+        else:
+            raise ValueError(Filter.FTYPE_NOT_FOUND % ff)
+        try:
+            field = fobjects.get(pk=pk)
+        except fmodel.DoesNotExist:
+            raise ValueError(Filter.FIELD_NOT_FOUND % ff)
+        return (flag, field)
+
+    def pack_field(self, flag, pk):
+        """Inversa de resolve_field"""
+        return "%s%d" % (flag, pk)
+
+    def __init__(self, request, ft, ff, fo, fv):
+        """Comprueba la validez de un filtro
+        Los parametros que recibe son:
+        - ft: primary key de una tabla.
+        - fl: primary key de un Field, Link o Child:
+              - Si es field, empieza por 'F'
+              - Si es link, empieza por 'L'
+              - Si es una subtabla, empieza por 'C'
+        - fo: operador a aplicar
+        - fv: valor con el que comparar el campo.
+
+        Comprueba que:
+        - ft es una tabla valida y el usuario tiene permiso para verla.
+        - fl es un campo valido y el usuario tiene permiso para verlo.
+        - fo es un operador valido para el tipo de campo.
+        - fv es un valor valido para el tipo de campo.
+        """
+        try:
+            model = Cache(int(ft))
+        except KeyError:
+            raise ValueError(Filter.MODEL_NOT_FOUND % str(ft))
+        profile = request.session['profile']
+        fields = profile.fields(model)
+        if not fields:
+            raise ValueError(Filter.MODEL_NOT_ALLOWED % model.fullname)
+        flag, field = self.resolve_field(model, str(ff))
+        if not field.name in fields:
+            raise ValueError(Filter.FIELD_NOT_ALLOWED % field.name)
+        operators = Filter.OPERATORS.get(field.kind, None)
+        if not operators:
+            raise ValueError(Filter.NO_OPERATORS % field.kind)
+        opdata = operators.get(fo, None)
+        if not opdata:
+            raise ValueError(Filter.OP_NOT_FOUND % str(fo))
+        op, label, optype = opdata
+        self.pk = model._DOMD.pk
+        self.flag = ff_flag
+        self.fpk = field.pk
+        self.op = op
+        self.label = label
+        self.value = optype(fv)
+
+
+class HomeView(dict):
+
+    """Prepara la vista raiz"""
+
     def __init__(self, request):
         super(dict, self).__init__()
         self.add_history(request)
@@ -79,100 +169,19 @@ class HomeView(dict):
         fv = request.GET('fv', None)
         changed = False
         if ft and ff and fo:
-            new_filter = self.build_filter(ft, ff, fo, fv)
-            if new_filter:
+            try:
+                new_filter = Filter(request, ft, ff, fo, fv)
+            except ValueError:
+                pass
+            else:
                 filters.append(new_filter)
                 changed = True
-        potential_filters = self.potential_filters(filters)
+        #applied_filters = self.apply_filters(filters)
         if changed:
             request.session['filters'] = filters
         self.update(**locals())
         return filters
 
-    def build_filter(self, ft, ff, fo, fv):
-        """Comprueba la validez de un filtro
-        Los parametros que recibe son:
-        - ft: primary key de una tabla.
-        - fl: primary key de un Field o Link:
-              - Si es field, empieza por 'F'
-              - Si es link, empieza por 'L'
-        - fo: operador a aplicar
-        - fv: valor con el que comparar el campo.
-
-        Comprueba que:
-        - ft es una tabla valida y el usuario tiene permiso para verla.
-        - fl es un campo valido y el usuario tiene permiso para verlo.
-        - fo es un operador valido para el tipo de campo.
-        - fv es un valor valido para el tipo de campo.
-        """
-        model = Cache(int(ft))
-        if not model:
-            print "El modelo con pk = %s no existe" % str(ft)
-            return
-        profile = request.session['profile']
-        fields = profile.fields(model)
-        if not fields:
-            print "El usuario no esta autorizado a acceder al modelo %s" % model.fullname
-            return
-        ff = str(ff)
-        if ff.startswith('F'):
-            fmodel = Field
-            ff_flag = 'F'
-        elif ff.startswith('L'):
-            fmodel = Link
-            ff_flag = 'L'
-        else:
-            print "El id de campo especificado no es valido"
-            return 
-        try:
-            field = fmodel.objects.get(pk=int(ff[1:]))
-        except fmodel.DoesNotExist:
-            print "No existe el campo con id %s en la tabla %s" % (ff, model.fullname)
-            return 
-        if not field.name in fields:
-            print "El usuario no esta autorizado a ver el campo %s (%s)" % (field.name, str(fields))
-            return
-        try:
-            operators = HomeView.OPERATORS[field.kind]
-        except KeyError:
-            print "No existen operadores para el tipo de campo (%s)" % (field.kind)
-            return
-        try:
-            op, label, optype = operators[fo]
-        except KeyError:
-            print "No existe el operador %s" % str(fo)
-            return
-        return (model._DOMD.pk, ff_flag, field.pk, op, optype(fv))
-
-    def trusted_filter(self, ft, ff_flag, ff, op, fv):
-        """Construye un filtro con los parametros ya validados
-        Los parametros que recibe son:
-        - ft: primary key de una tabla.
-        - ff_flag:
-              - 'F' si se quiere filtrar sobre un Field
-              - 'L' si se filtra sobre un Link
-        - fl: primary key del Field / Link
-        - op: operador a aplicar
-        - label: etiqueta del operador, para listas
-        - fv: valor con el que filtrar
-        """
-        model = Cache(int(ft))
-        fmodel = Field if ff_flag = 'F' else Link
-        field = fmodel.objects.get(pk=ff)
-        return (model, field, op, fv)
-
-    def potential_filters(filters):
-        trusted_filters = (self.trusted_filter(x) for x in filters)
-        potential = dict()
-        for model, field, op, fv in trusted_filters:
-            potential[model._DOMD.pk] = model
-            for submodel in model._DOMD.children.all():
-                potential[submodel._DOMD.pk] = submodel
-        for pk, model in potential:
-            pass
-        self.update(**locals())
-        
-        
 
 @login_required
 @with_profile
