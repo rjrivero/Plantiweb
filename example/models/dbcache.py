@@ -67,7 +67,7 @@ class RootType(DataType(object)):
 
     def __getattr__(self, attr):
         """Busca una tabla con el nombre dado y parent NULL"""
-        objects = self._type._DOMD.children[attr].objects.all()
+        objects = self._type._DOMD.children[attr]._DOMD.objects.all()
         setattr(self, attr, objects)
         return objects
 

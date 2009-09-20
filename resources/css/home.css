@@ -1,0 +1,78 @@
+/* Estilos de la pagina home */
+
+#h_select {
+  width: 50%;
+}
+
+#selector {
+  padding: 1.2em;
+}
+
+#items {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#items thead th, #items thead td {
+ font-weight: bold;
+ text-align: center;
+ background-color: #e1e1ff;
+ border-bottom: thin solid #eee;
+ padding: 1em;
+}
+
+#items thead th {
+ font-style: italic;
+}
+
+#items tbody th {
+  font-weight: normal;
+  text-align: center;
+  font-style: italic;
+}
+
+#items tbody td {
+  text-align: center;
+}
+
+.odd {
+ color: black;
+ background-color: white;
+}
+
+.even {
+ color: black;
+ background-color: #efefff;
+}
+
+.remark_odd {
+ color: black;
+ background-color: white;
+}
+
+.remark_even {
+ color: black;
+ background-color: #efefff;
+}
+
+#full_path {
+  padding: 0.5em 0.5em 0.5em 1.5em;  
+}
+
+#full_path ul {
+  display: inline;
+  margin: 0;
+}
+
+#full_path li {
+  display: inline;
+  border: 0;
+  border-left: solid 2px black;
+  padding: 0 1em 0 1em;
+}
+
+#full_path .selected {
+  font-weight: bold;
+}
+ 

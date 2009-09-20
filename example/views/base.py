@@ -5,7 +5,10 @@
 
 from functools import wraps
 
-from ..models import ChangeLog, Cache, UserView
+from ..models import ChangeLog, Cache, Table, UserView, TableView, View
+
+
+DEFAULT_VIEW = 'Default'
 
 
 class Profile(object):
@@ -24,18 +27,18 @@ class Profile(object):
 
     def invalidate(self):
         self.version = ChangeLog.objects.current().pk
-        self.identities = dict()
-        self.fields = dict()
-        self.summaries = dict()
+        self._identities = dict()
+        self._fields = dict()
+        self._summaries = dict()
 
-    def identity(self, model):
-        return self._cached(self.identities, model, self._identity)
+    def identity(self, model, default=None):
+        return self._cached(self._identities, model, self._identity)
 
-    def summary(self, model):
-        return self._cached(self.summaries, model, self._from_view, 'summary')
+    def summary(self, model, default=None):
+        return self._cached(self._summaries, model, self._from_view, 'summary', default)
 
-    def fields(self, model):
-        return self._cached(self.fields, model, self._from_view, 'fields')
+    def fields(self, model, default=None):
+        return self._cached(self._fields, model, self._from_view, 'fields', default)
 
     def _cached(self, d, model, func, *args):
         """Obtiene el valor de un campo de la cache"""
@@ -45,12 +48,17 @@ class Profile(object):
         except KeyError:
             return d.setdefault(pk, func(model, pk, *args))
 
-    def _from_view(self, model, pk, attrib):
+    def _from_view(self, model, pk, attrib, default):
         """Obtiene un atributo del objeto TableView"""
         try:
-            item = TableView.get(view=self.view, table=pk)
+            item = TableView.objects.get(view=self.view, table=pk)
         except (TableView.DoesNotExist):
-            raise KeyError(model.fullname)
+            if default is None:
+                raise KeyError(model._DOMD.fullname)
+            return default
+        else:
+            print "FIELDS: %s" % repr(item.fields)
+            print "SUMMARY: %s" % repr(item.summary)
         return getattr(item, attrib)
 
     def _identity(self, model, pk):
@@ -58,7 +66,7 @@ class Profile(object):
         try:
             uniques = set(f.name for f in Table.objects.get(pk=pk).uniques)
         except Table.DoesNotExist:
-            raise KeyError(model.fullname)
+            raise KeyError(model._DOMD.fullname)
         for item in self.fields(model):
             if item in uniques:
                 return item

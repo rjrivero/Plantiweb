@@ -3,56 +3,85 @@
 {% block title %}home{% endblock %}
 {% block description %}Bienvenido al navegador de datos{% endblock %}
 
+{% block stylesheets %}
+{{ block.super }}
+<link rel="stylesheet" href="/resources/css/home.css" type="text/css">
+<link rel="stylesheet" href="/resources/css/jquery.editable-select.css" type="text/css">
+{% endblock %}
+
+{% block javascript %}
+<script type="text/javascript" src="/resources/jes/jquery.editable-select.js"></script>
+<script language="javascript"><!--
+$(document).ready(function() {
+  $("#h_select").editableSelect();
+});
+--></script>
+{% endblock %}
+
 {% block content %}
 
 <form method="GET" action="">
 
-<script language="javascript"><!--
-  function h_change() {
-    h_text.value = h_select.value;
-    hide_select();
-  }
-  function toggle_select() {
-    if(toggle) {
-      h_text.style.visibility = "hidden";
-      h_select.style.visibility = "visible";
-      toggle = false;
-      h_select.focus();
-    }
-    else hide_select();
-  }
-  function hide_select() {
-    h_select.style.visibility = "hidden";
-    h_text.style.visibility = "visible";
-    toggle = true;
-    h_text.focus();
-  }
---></script>
-
 <div id="selector">
-  Mostrar
-  (<a href="javascript: toggle_select();">hist&oacute;rico</a> 
+  Hist&oacute;rico ( 
   <select name="h">
     {% for option in h_list %}
       <option value="{{ option }}"{% ifequal option h %} selected{% endifequal %}>{{ option }}</option>
     {% endfor %}
-  </select> entradas):
-  <select style="width: 50%; position: absolute; cursor: hand; visibility: hidden" id="h_select" size="10" onChange="javascript: h_change();">
+  </select> entradas ):
+  <select name="q" id="h_select">
     {% for option in history %}
-      <option value="{{ option|escapejs }}"{% ifequal selected forloop.counter0 %} selected{% endifequal %}>{{ option }}</option>
+      <option value="{{ option }}"{% ifequal selected forloop.counter0 %} selected{% endifequal %}>{{ option }}</option>
     {% endfor %}
   </select>
-  <input style="visibility: hidden; width: 50%;" type="text" id="h_text" name="q" value="{{ q|escapejs }}"/> 
+  <!--<input type="text" id="h_text" name="q" value="{{ q|escapejs }}"/>-->
   <input type="submit" value="Buscar"/>
 </div>
 
-<script language="javascript"><!--
-  h_text = document.getElementById('h_text');
-  h_select = document.getElementById('h_select');
-  toggle = true;
-  hide_select();
---></script>
-
 </form>
+
+<div id="full_path">
+  <img src="/resources/img/arrow-down.png"/>
+  <ul>
+    {% for domd in item_full_path %}
+    <li>
+      {% ifequal domd.pk pk %} 
+        <a  class="selected" href="?pk={{ domd.pk }}">&gt; {{domd.name}} &lt;</a>
+      {% else %}
+        <a href="?pk={{ domd.pk }}">{{domd.name}}</a>
+      {% endifequal %}
+    </li>
+    {% empty %}
+    Haga click sobre la flecha para filtrar
+    {% endfor %}
+  </ul>
+</div>
+
+{% if item_summary %}
+  {% load attrib %}
+  <table id="items">
+  <thead><tr>
+    {% for name in item_parents %}
+      <th>({{ name|capfirst }})</th>
+    {% endfor %}
+    {% for name in item_summary %}
+      <td>{{ name|capfirst }}</td>
+    {% endfor %}
+  </tr></thead>
+  <tbody>
+  {% for path, instance in items %}
+    <tr class="{% cycle 'odd' 'even' %}">
+    <!--{% cycle 'remark_odd' 'remark_even' as tdcolor %}-->
+    {% for value in path %}
+      <th class="{{ tdcolor }}">{{ value }}</th>
+    {% endfor %}
+    {% for name in item_summary %}
+      <td>{{ instance|getattr:name }}</td>
+    {% endfor %}
+    </tr>  
+  {% endfor %}
+  </tbody>
+  </table>
+{% endif %}
 
 {% endblock %}

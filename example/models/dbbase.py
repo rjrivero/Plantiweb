@@ -213,7 +213,7 @@ class DJSet(models.query.QuerySet):
         if attrib == 'pk' or attrib in domd.attribs:
             return BaseSet(getattr(x, attrib) for x in self)
         try:
-            objects = domd.children[attrib].objects
+            objects = domd.children[attrib]._DOMD.objects
         except KeyError as details:
             raise AttributeError(details)
         if not self._crit:
@@ -226,8 +226,9 @@ class DJSet(models.query.QuerySet):
             # si hay cambos agregados, es mejor usar una subquery.
             crit = QueryItem(True, '_up__in', self.values('pk'), False)
             crit = AndQuery(crit)
-        objects = objects.filter(crit.q())
+        objects = objects.filter(crit.q()).all()
         objects._crit = crit
+        return objects
 
     def __add__(self, other):
         return _add(self, other)
@@ -241,7 +242,7 @@ class DJSet(models.query.QuerySet):
     def up(self):
         # esto siempre lo resuelvo con subqueries
         crit = QueryItem(True, 'pk__in', self.values('_up_id'), False)
-        parents = self._type._DOMD.parent.objects.filter(crit.q())
+        parents = self._type._DOMD.parent._DOMD.objects.filter(crit.q()).all()
         parents._crit = AndQuery(crit)
         return parents
 
@@ -269,7 +270,7 @@ class DJModel(DataType(models.Model)):
         except KeyError as details:
             raise AttributeError(details)
         else:
-            objects = child.objects.filter(_up__exact=self.pk)
+            objects = child._DOMD.objects.filter(_up__exact=self.pk).all()
             setattr(self, attr, objects)
             return objects
 
@@ -297,7 +298,7 @@ def _add(one, other):
     """Concatena dos sets"""
     if one._type != other._type:
         raise TypeError(other._type)
-    objects = one._type.objects
+    objects = one._type._DOMD.objects
     c1, c2 = one._crit, other._crit
     if not c1 or not c2:
         # Cuando no hay filtro es como pk=cualquiera, no esta filtrado.
@@ -305,6 +306,6 @@ def _add(one, other):
         # no esta filtrado, es la tabla entera sin filtrar.
         return objects.all()
     crit = OrQuery(c1, c2)
-    objects = objects.filter(crit.q())
+    objects = objects.filter(crit.q()).all()
     objects._crit = AndQuery(crit)
     return objects

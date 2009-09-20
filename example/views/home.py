@@ -10,7 +10,7 @@ from django.template import RequestContext
 from django.contrib.auth.decorators import login_required
 
 from .base import with_profile
-from ..models import Field, Link, Table
+from ..models import Field, Link, Table, Cache
 
 
 DEFAULT_HIST_LEN = 10
@@ -132,20 +132,75 @@ class HomeView(dict):
 
     def __init__(self, request):
         super(dict, self).__init__()
-        self.add_history(request)
+        q = self.add_history(request)
         self.add_filters(request)
+        items = self.run_query(request, q)
+
+    class PathItem(tuple):
+
+        """Objeto precedido de ruta"""
+
+        def __new__(cls, model, identities, instance):
+            """
+            model: modelo del objeto
+            identities: campos a recuperar de los modelos ancestros
+            instance: instancia
+            """
+            obj = tuple.__new__(cls, ([], instance))
+            for attr in reversed(identities):
+                instance = instance.up
+                obj[0].append(getattr(instance, attr, None))
+            obj[0].reverse()
+            return obj
+
+        @property
+        def path(self):
+            return self[0]
+
+        @property
+        def instance(self):
+            return self[1]
+
+    def run_query(self, request, q):
+        # Cargo los datos
+        try:
+            items = Cache.evaluate(q)
+        except:
+            # TODO: volcar adecuadamente los datos de la excepcion
+            return
+        if not hasattr(items, '__iter__') or not hasattr(items, '_type'):
+            return
+        profile = request.session['profile']
+        model = items._type
+        full_path = (x._DOMD for x in model._DOMD.path)
+        try:
+            ancestor = int(request.GET['pk'])
+        except KeyError:
+            pass
+        else:
+            if ancestor in set(x._DOMD.pk for x in model._DOMD.parents):
+                while items._type._DOMD.pk != ancestor:
+                    items = items.up
+                model = items._type  
+        self['pk'] = model._DOMD.pk      
+        parents = tuple(x._DOMD.name for x in model._DOMD.parents)
+        identities = tuple(profile.identity(x) for x in model._DOMD.parents)
+        self['item_full_path'] = full_path
+        self['item_parents'] = parents
+        self['item_summary'] = profile.summary(model, tuple())
+        self['item_identity'] = profile.identity(model)
+        self['items'] = (HomeView.PathItem(model, identities, x) for x in items)
+        return items
 
     def add_history(self, request):
         """Actualiza el historico de comandos"""
         history = request.session.setdefault('history', [])
-        q = request.GET.get('q', u'')
+        q = request.GET.get('q', request.session.get('q', u''))
         h = int(request.GET.get('h', DEFAULT_HIST_LEN))
         h_list = (5, 10, 15, 20, 25)
-        changed = False
         if 0 < h <= h_list[-1]:
             if len(history) > h:
                 history = history[:h]
-                changed = True
         else:
             h = h_list[-1]
         if q:
@@ -154,19 +209,18 @@ class HomeView(dict):
             except ValueError:
                 selected = 0
                 history.insert(0, q)
-                changed = True
-        if changed:
-            request.session['history'] = history
+        request.session['q'] = q
+        request.session['history'] = history
         self.update(**locals())
         return q
 
     def add_filters(self, request):
         """Actualiza la lista de filtros"""
         filters = request.session.setdefault('filters', [])
-        ft = request.GET('ft', None)
-        ff = request.GET('ff', None)
-        fo = request.GET('fo', None)
-        fv = request.GET('fv', None)
+        ft = request.GET.get('ft', None)
+        ff = request.GET.get('ff', None)
+        fo = request.GET.get('fo', None)
+        fv = request.GET.get('fv', None)
         changed = False
         if ft and ff and fo:
             try:

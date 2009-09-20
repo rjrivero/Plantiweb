@@ -33,7 +33,6 @@ class MetaData(MD):
 
     """Metadatos asociados a una tabla de cliente"""
 
-
     def __init__(self, instance):
 
         """Procesa la instancia que define la tabla.
@@ -72,11 +71,33 @@ class MetaData(MD):
         super(MetaData, self).__init__(pk, name, attrs, parent)
         self.attribs, self.dbattribs = fields, dbfields
         self.identity = tuple(x.name for x in instance.uniques)
-        setattr(self._type, '__unicode__', to_unicode)
+        if not self.identity:
+            self.identity = ('pk',)
         # agrego propiedades para los campos dinamicos
         self._add_dynamics(instance, dynamics)
         # agrego filtros
         self._add_filters(instance, filters)
+        # Calculo el numero de referencias que select_related debe seguir.
+        # De esta forma, las llamadas a up no incurren en costes.
+        depth_string, fk_string = list(), '_up'
+        while parent and parent._DOMD.pk is not None:
+            depth_string.append(fk_string)
+            fk_string = '_up__%s' % fk_string
+            parent = parent._DOMD.parent
+        self._depth_string = depth_string
+        # agrego el resto de atributos
+        # No puedo usar instance.path porque este modelo todavia no esta
+        # en cache, lo estamos creando. Cache[x] fallaria.
+        self.parents = list(Cache[x] for x in instance.ancestors)
+        self.parents.reverse()
+        self.path = self.parents[:]
+        self.path.append(self._type)
+        self.fullname = instance.fullname
+        setattr(self._type, '__unicode__', to_unicode)
+
+    @property
+    def objects(self):
+        return self._type.objects.select_related(*self._depth_string)
 
     def _get_fields(self, instance, fields, attrs, dbfields):
         """Lee los Fields y crea una lista de campos dinamicos.

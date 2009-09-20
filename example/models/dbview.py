@@ -12,9 +12,6 @@ from .dbfields import *
 from .dbmodel import Table
 
 
-DEFAULT_VIEW = 'Default'
-
-
 class View(models.Model):
 
     """MetaTabla que define las vistas de las tablas creadas"""

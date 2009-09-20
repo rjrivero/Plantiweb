@@ -175,15 +175,21 @@ class TokenTuple(tuple):
         return TOKEN_SPLIT.join(x.labeled() for x in self)
 
 
-class SeparatedValuesField(models.CharField):
+class SeparatedValuesField(models.Field):
 
     """Campo que contiene una lista de identificadores separados por ','"""
 
+    __metaclass__ = models.SubfieldBase
+
     def to_python(self, value):
+        print "ESTAMOS EN TO_PYTHON!"
         return TokenTuple(value)
 
     def get_db_prep_value(self, value):
         return TokenTuple(value).labeled()
+
+    def get_internal_type(self): 
+        return 'TextField'
  
 
 class CatchQuerySet(models.query.QuerySet):
