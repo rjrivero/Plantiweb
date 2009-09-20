@@ -46,7 +46,7 @@ $(document).ready(function() {
     {% for domd in item_full_path %}
     <li>
       {% ifequal domd.pk pk %} 
-        <a  class="selected" href="?pk={{ domd.pk }}">&gt; {{domd.name}} &lt;</a>
+        <a  class="selected" href="?pk={{ domd.pk }}">{{domd.name}}</a>
       {% else %}
         <a href="?pk={{ domd.pk }}">{{domd.name}}</a>
       {% endifequal %}

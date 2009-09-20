@@ -67,7 +67,7 @@ class Profile(object):
             uniques = set(f.name for f in Table.objects.get(pk=pk).uniques)
         except Table.DoesNotExist:
             raise KeyError(model._DOMD.fullname)
-        for item in self.fields(model):
+        for item in self.fields(model, tuple()):
             if item in uniques:
                 return item
         return 'pk'

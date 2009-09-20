@@ -8,6 +8,7 @@ from .models import *
 
 class FieldInline(admin.TabularInline):
     model = Field
+    fields = ['name', 'null', 'index', 'comment', 'kind', 'len']
     extra = 4
 
 
