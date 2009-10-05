@@ -26,15 +26,17 @@
 <!-- CABECERA -->
 
 {% block header %}
-<div id="header">
-  <div id="usertools">
-    <ul>
-      <li><a href="{% url chpassview %}">Cambiar clave</a></li>
-      <li><a href="{% url logoutview %}">Cerrar sesi&oacute;n</a></li>
-    </ul>
-  </div>
-  <div id="welcome">
-    Bienvenido, <strong>{% firstof user.first_name user.username %}</strong>.
+<div id="headercontainer">
+  <div id="header">
+    <div id="usertools">
+      <ul>
+        <li><a href="{% url chpassview %}">Cambiar clave</a></li>
+        <li><a href="{% url logoutview %}">Cerrar sesi&oacute;n</a></li>
+      </ul>
+    </div>
+    <div id="welcome">
+      Bienvenido, <strong>{% firstof user.first_name user.username %}</strong>.
+    </div>
   </div>
 </div>
 {% endblock %}
