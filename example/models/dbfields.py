@@ -9,6 +9,7 @@ except ImportError:
     import pickle
 import re
 
+from itertools import chain
 from IPy import IP
 from django.forms import ValidationError as FormValidationError
 from django.core.exceptions import ValidationError
@@ -72,6 +73,83 @@ class BoundedIntegerField(models.PositiveIntegerField):
         return super(BoundedIntegerField, self).get_db_prep_save(value)
 
 
+BYTES_LIST = ('255','127','63','31','15','7','3','1')
+NIBBLES_LIST = (
+    'ffff', '7fff', '3fff', '1fff',
+    '0fff', '07ff', '03ff', '01ff',
+    '00ff', '007f', '003f', '001f',
+    '000f', '0007', '0003', '0001',
+)
+
+class IPAddress(object):
+
+    WILDMASK_IPV4 = tuple(chain(
+        ("%s.255.255.255" % a for a in BYTES_LIST),
+        ("0.%s.255.255" % a for a in BYTES_LIST),
+        ("0.0.%s.255" % a for a in BYTES_LIST),
+        ("0.0.0.%s" % a for a in BYTES_LIST)))
+
+    WILDMASK_IPV6 = tuple(chain(
+        ("%s:ffff:ffff:ffff:ffff:ffff:ffff:ffff" % a for a in NIBBLES_LIST),
+        ("::%s:ffff:ffff:ffff:ffff:ffff:ffff" % a for a in NIBBLES_LIST),
+        ("::%s:ffff:ffff:ffff:ffff:ffff" % a for a in NIBBLES_LIST),
+        ("::%s:ffff:ffff:ffff:ffff" % a for a in NIBBLES_LIST),
+        ("::%s:ffff:ffff:ffff" % a for a in NIBBLES_LIST),
+        ("::%s:ffff:ffff" % a for a in NIBBLES_LIST),
+        ("::%s:ffff" % a for a in NIBBLES_LIST),
+        ("::%s" % a for a in NIBBLES_LIST)))
+
+    def __init__(self, ip_str):
+        try:
+            address, mask = ip_str.split('/')
+        except IndexError:
+            address, mask = ip_str, None
+        self._ip = IP(address) 
+        masklen = int(mask) if mask is not None else self._ip.prefixlen()
+        self._net = self._ip.make_net(masklen)
+
+    @property
+    def ip(self):
+        return str(self._ip)
+
+    @property
+    def red(self):
+        return IPAddress(self._net.strNormal(1))
+
+    @property
+    def mascara(self):
+        return str(self._net.netmask())
+
+    @property
+    def wildmask(self):
+        if self._ip.version() == 4:
+            return IPAddress.WILDMASK_IPV4[self.bits]
+        return IPAddress.WILDMASK_IPV6[self.bits]
+        
+    @property
+    def bits(self):
+        return self._net.prefixlen()
+
+    @property
+    def completo(self):
+        if self._net.prefixlen() == self._ip.prefixlen():
+            return str(self._ip)
+        return " /".join((str(self._ip), str(self.bits)))
+
+    def __add__(self, int):
+	result = self._net[int]
+        return IPAddress(" /".join((str(result), str(self.bits))))
+
+    def __str__(self):
+        return str(self._ip)
+
+    def __unicode__(self):
+        return unicode(self._ip)
+
+    def __repr__(self):
+        return self.completo
+
+
 class IPAddressFormField(fields.Field):
 
     def clean(self, value):
@@ -79,7 +157,7 @@ class IPAddressFormField(fields.Field):
         if value in fields.EMPTY_VALUES:
             return u''
         try:
-            IP(value)
+            IPAddress(value)
         except Exception, e:
             raise FormValidationError(e)
         return super(IPAddressFormField, self).clean(value)
@@ -88,21 +166,23 @@ class IPAddressFormField(fields.Field):
 class IPAddressWidget(widgets.TextInput):
 
     def render(self, name, value, attrs=None):
-        if isinstance(value, IP):
-            value = unicode(value)
+        if isinstance(value, IPAddress):
+            value = unicode(value.completo)
         return super(IPAddressWidget, self).render(name, value, attrs)
 
 
 class IPAddressField(models.CharField):
 
+    def __init__(self, *arg, **kw):
+        """Construye el campo y limita su longitud"""
+        kw['max_length'] = 32
+        super(IPAddressField, self).__init__(*arg, **kw)
+
     def to_python(self, value):
         if not value or value.isspace():
             return None
         try:
-            ip = IP(value)
-            ip.NoPrefixForSingleIp = True
-            ip.WantPrefixLen = 1
-            return ip
+            return IPAddress(value)
         except Exception, e:
             raise ValidationError(e)
 
@@ -116,7 +196,7 @@ class IPAddressField(models.CharField):
 
     def get_db_prep_value(self, value):
         try:
-            return unicode(self.to_python(value))
+            return unicode(value.completo)
         except TypeError:
             return None
 
