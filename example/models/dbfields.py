@@ -9,7 +9,11 @@ except ImportError:
     import pickle
 import re
 
+from IPy import IP
+from django.forms import ValidationError as FormValidationError
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.forms import fields, widgets
 
 
 DB_IDENTIFIER_LENGTH = 16
@@ -48,8 +52,6 @@ class BoundedIntegerField(models.PositiveIntegerField):
 
     """Tipo de columna que representa un entero acotado"""
 
-    _VALID = re.compile('^[a-zA-Z][\w\d_]{0,15}$')
-
     def __init__(self, lower, upper, *arg, **kw):
         """Define limites inferior y superior de la cota"""
         self.lower = lower
@@ -68,6 +70,63 @@ class BoundedIntegerField(models.PositiveIntegerField):
         if value is not None and (value < self.lower or value > self.upper):
             raise ValueError(value)
         return super(BoundedIntegerField, self).get_db_prep_save(value)
+
+
+class IPAddressFormField(fields.Field):
+
+    def clean(self, value):
+        """Method for validating IPs on forms"""
+        if value in fields.EMPTY_VALUES:
+            return u''
+        try:
+            IP(value)
+        except Exception, e:
+            raise FormValidationError(e)
+        return super(IPAddressFormField, self).clean(value)
+
+
+class IPAddressWidget(widgets.TextInput):
+
+    def render(self, name, value, attrs=None):
+        if isinstance(value, IP):
+            value = unicode(value)
+        return super(IPAddressWidget, self).render(name, value, attrs)
+
+
+class IPAddressField(models.CharField):
+
+    def to_python(self, value):
+        if not value or value.isspace():
+            return None
+        try:
+            ip = IP(value)
+            ip.NoPrefixForSingleIp = True
+            ip.WantPrefixLen = 1
+            return ip
+        except Exception, e:
+            raise ValidationError(e)
+
+    def get_db_prep_lookup(self, lookup_type, value):
+        try:
+            if lookup_type in ('range', 'in'):
+                return [self.get_db_prep_value(v) for v in value]
+            return [self.get_db_prep_value(value)]
+        except ValidationError:
+            return super(IPAddressField, self).get_db_prep_lookup(lookup_type, value)
+
+    def get_db_prep_value(self, value):
+        try:
+            return unicode(self.to_python(value))
+        except TypeError:
+            return None
+
+    def formfield(self, **kwargs):
+        defaults = {
+            'form_class': IPAddressFormField,
+            'widget': IPAddressWidget,
+        }
+        defaults.update(kwargs)
+        return super(IPAddressField, self).formfield(**defaults)
 
 
 class PickledObject(str):
@@ -182,7 +241,6 @@ class SeparatedValuesField(models.Field):
     __metaclass__ = models.SubfieldBase
 
     def to_python(self, value):
-        print "ESTAMOS EN TO_PYTHON!"
         return TokenTuple(value)
 
     def get_db_prep_value(self, value):
