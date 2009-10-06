@@ -87,7 +87,8 @@ class IPAddress(object):
         ("%s.255.255.255" % a for a in BYTES_LIST),
         ("0.%s.255.255" % a for a in BYTES_LIST),
         ("0.0.%s.255" % a for a in BYTES_LIST),
-        ("0.0.0.%s" % a for a in BYTES_LIST)))
+        ("0.0.0.%s" % a for a in BYTES_LIST),
+        ("0.0.0.0",)))
 
     WILDMASK_IPV6 = tuple(chain(
         ("%s:ffff:ffff:ffff:ffff:ffff:ffff:ffff" % a for a in NIBBLES_LIST),
@@ -97,57 +98,87 @@ class IPAddress(object):
         ("::%s:ffff:ffff:ffff" % a for a in NIBBLES_LIST),
         ("::%s:ffff:ffff" % a for a in NIBBLES_LIST),
         ("::%s:ffff" % a for a in NIBBLES_LIST),
-        ("::%s" % a for a in NIBBLES_LIST)))
+        ("::%s" % a for a in NIBBLES_LIST),
+        ("::0",)))
 
-    def __init__(self, ip_str):
+    ATTRIBS = set('base', 'host', 'ip', 'mascara', 'red', 'bits', 'wildmask')
+
+    def __init__(self, ip, host=None):
+        """Construye un objeto de tipo IP.
+        - Si se omite "host", "ip" debe ser una cadena de texto en formato
+          "ip / mask".
+        - Si no se omite "host", ip debe ser un objeto IPy.IP.
+        """
+        if host is not None:
+            self.base = ip
+            self.host = host
+        else:
+            self._str = ip
+
+    def _parse(self):
         try:
-            address, mask = ip_str.split('/')
+            address, mask = self._str.split('/')
         except IndexError:
-            address, mask = ip_str, None
-        self._ip = IP(address) 
-        masklen = int(mask) if mask is not None else self._ip.prefixlen()
-        self._net = self._ip.make_net(masklen)
+            address, mask = self._str, None
+        ip = IP(address) 
+        masklen = int(mask) if mask is not None else ip.prefixlen()
+        self.base = ip.make_net(masklen)
+        self.host = ip.int() - self.base.int()
+        return self
 
-    @property
-    def ip(self):
-        return str(self._ip)
+    def _base(self):
+        return self._parse().base
 
-    @property
-    def red(self):
-        return IPAddress(self._net.strNormal(1))
+    def _host(self):
+        return self._parse().host
 
-    @property
-    def mascara(self):
-        return str(self._net.netmask())
+    def _ip(self):
+        return self.base[self.host].strNormal(0)
 
-    @property
-    def wildmask(self):
-        if self._ip.version() == 4:
-            return IPAddress.WILDMASK_IPV4[self.bits]
-        return IPAddress.WILDMASK_IPV6[self.bits]
-        
-    @property
-    def bits(self):
-        return self._net.prefixlen()
+    def _mascara(self):
+        return self.base.netmask()
 
-    @property
-    def completo(self):
-        if self._net.prefixlen() == self._ip.prefixlen():
-            return str(self._ip)
-        return " /".join((str(self._ip), str(self.bits)))
+    def _red(self):
+        return IPAddress(self.base, 0)
 
-    def __add__(self, int):
-	result = self._net[int]
-        return IPAddress(" /".join((str(result), str(self.bits))))
+    def _bits(self):
+        return self.base.prefixlen()
+
+    def _wildmask(self):
+        if self.base.version() == 4:
+            masks = IPAddress.WILDMASK_IPV4
+        else:
+            masks = IPAddress.WILDMASK_IPV6
+        return masks[self.bits]
+
+    def __getattr__(self, attr):
+        if not attr in IPAddress.ATTRIBS:
+            print "EN GETATTR (%s)" % attr
+            raise AttributeError(attr)
+        result = getattr(IPAddress, "_%s" % attr)(self)
+        setattr(self, attr, result)
+        return result
+
+    def __add__(self, num):
+        return IPAddress(self.base, self.host + num)
 
     def __str__(self):
-        return str(self._ip)
+        return " /".join((self.ip.strNormal(0), str(self.bits)))
 
     def __unicode__(self):
-        return unicode(self._ip)
+        return u" /".join((self.ip.strNormal(0), str(self.bits)))
 
     def __repr__(self):
-        return self.completo
+        return "IPAddress('%s')" % str(self)
+
+    def __cmp__(self, other):
+        result = cmp(self.base, other.base)
+        if not result:
+            result = cmp(self.host, other.host)
+        return result
+
+    def __nonzero__(self):
+        return self.base and self.host
 
 
 class IPAddressFormField(fields.Field):
@@ -167,7 +198,7 @@ class IPAddressWidget(widgets.TextInput):
 
     def render(self, name, value, attrs=None):
         if isinstance(value, IPAddress):
-            value = unicode(value.completo)
+            value = unicode(value)
         return super(IPAddressWidget, self).render(name, value, attrs)
 
 
@@ -196,7 +227,7 @@ class IPAddressField(models.CharField):
 
     def get_db_prep_value(self, value):
         try:
-            return unicode(value.completo)
+            return unicode(value)
         except TypeError:
             return None
 
