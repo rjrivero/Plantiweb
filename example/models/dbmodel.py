@@ -316,7 +316,7 @@ class Dynamic(models.Model):
 
     objects = CatchManager()
     related = models.OneToOneField(Field, verbose_name=_('ligado a'))
-    code = models.TextField(verbose_name=_('codigo'))
+    code = models.CharField(max_length=1024, verbose_name=_('codigo'))
 
     class Meta:
         verbose_name = _('campo dinamico')

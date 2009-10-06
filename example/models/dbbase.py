@@ -164,20 +164,31 @@ class Deferrer(object):
 
     def __add__(self, arg):
         """Comprueba la pertenecia a una lista"""
-        return self._defer(True, 'in', asIter(arg))
+        if isinstance(arg, DJValueSet):
+            # para hacer una subquery, y no sacara los
+            # datos antes de hacer la consulta.
+            arg = arg._queryset.values(arg._attrib)
+        else:
+            arg = asIter(arg)
+        return self._defer(True, 'in', arg)
 
     def __sub__(self, arg):
         """Comprueba la no pertenencia a una lista"""
-        return self._defer(False, 'in', asIter(arg))
+        if isinstance(arg, DJValueSet):
+            # para hacer una subquery, y no sacara los
+            # datos antes de hacer la consulta.
+            arg = arg._queryset.values(arg._attrib)
+        else:
+            arg = asIter(arg)
+        return self._defer(False, 'in', arg)
 
 
-
-class DJSet(models.query.QuerySet):
+class DJQuerySet(models.query.QuerySet):
 
     """QuerySet que implementa la interfaz de los DataSets"""
 
     def __init__(self, *arg, **kw):
-        super(DJSet, self).__init__(*arg, **kw)
+        super(DJQuerySet, self).__init__(*arg, **kw)
         # criterios que han llevado a la obtencion de este QuerySet
         self._crit = None
  
@@ -211,7 +222,13 @@ class DJSet(models.query.QuerySet):
         """Obtiene el atributo seleccionado"""
         domd = self._type._DOMD
         if attrib == 'pk' or attrib in domd.attribs:
-            return BaseSet(getattr(x, attrib) for x in self)
+            if attrib in domd.dynamic:
+                # el campo es calculado, no tengo mas remedio
+                # que calcularlo por cada elemento del set.
+                return BaseSet(getattr(x, attrib) for x in self)
+            else:
+                # el campo no es calculado, puedo demorar la consulta
+                return DJValueSet(self, attrib)
         try:
             objects = domd.children[attrib]._DOMD.objects
         except KeyError as details:
@@ -251,10 +268,38 @@ class DJSet(models.query.QuerySet):
         return self.model
 
 
+class DJValueSet(object):
+
+    """Encapsula un ValuesQuerySet.
+
+    Proporciona los metodos habituales de filtrado, acceso, etc
+    """
+
+    def __init__(self, queryset, attrib):
+        """Construye un DJValueSet a partir de un DJQuerySet y un atributo"""
+        self._queryset = queryset
+        self._attrib = attrib
+        self._valueset = queryset.values(attrib)
+
+    def __call__(self, arg):
+        return DJValueSet(self._queryset(**{self._attrib: arg}), self._attrib)
+
+    def __add__(self, other):
+        if (isinstance(other, DJValueSet) and 
+            self._queryset._type == other._queryset._type and
+            self._attrib == other._attrib):
+            return DJValueSet(self._queryset + other._queryset, self._attrib)
+        return BaseSet(chain(self, other))
+
+    def __iter__(self):
+        for item in self._valueset(self._attrib):
+            yield item[self._attrib]
+
+
 class DJManager(models.Manager):
 
     def get_query_set(self):
-        return DJSet(self.model)
+        return DJQuerySet(self.model)
 
 
 class DJModel(DataType(models.Model)):
@@ -309,3 +354,4 @@ def _add(one, other):
     objects = objects.filter(crit.q()).all()
     objects._crit = AndQuery(crit)
     return objects
+

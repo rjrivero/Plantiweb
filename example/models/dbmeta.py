@@ -45,6 +45,8 @@ class MetaData(MD):
 
         atributos que se almacenan en el objeto:
           - filters: diccionario de filtros para los campos enlazados.
+          - dbattribs: mapeo de nombre de propiedad a nombre de campo en bd.
+          - dynamic: lista de campos calculados
 
         aparte de los de dbcache.MetaData
         """
@@ -70,6 +72,7 @@ class MetaData(MD):
         # Creo metadata y modelo!
         super(MetaData, self).__init__(pk, name, attrs, parent)
         self.attribs, self.dbattribs = fields, dbfields
+        self.dynamic = set(x[0].name for x in dynamics)
         self.identity = tuple(x.name for x in instance.uniques)
         if not self.identity:
             self.identity = ('pk',)
@@ -120,7 +123,7 @@ class MetaData(MD):
                 pass
             else:
                 source_id = '<%s.%s.code>' % (instance.fullname, name)
-                code = compile(dynamic.code, source_id, 'exec')
+                code = compile(dynamic.code, source_id, 'eval')
                 dynamics.append((field, code))
         return dynamics
 
@@ -132,9 +135,14 @@ class MetaData(MD):
         atributo "name", se guarde en "hidden".
         """
         def fget(self):
-            local = Fallback(Cache.data, {'self': self}, 1)
-            exec code in Cache.glob, local
-            return getattr(local, name)
+            value = getattr(self, hidden)
+            if value is None:
+                try:
+                    local = Fallback(Cache.data, {'self': self}, 1)
+                    value = eval(code, Cache.glob, local)
+                except:
+                    value = None
+            return value
         def fset(self, value):
             setattr(self, hidden, value)
         return property(fget, fset)
