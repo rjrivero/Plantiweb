@@ -75,4 +75,9 @@
 #full_path .selected {
   font-weight: bold;
 }
- 
+
+/* Para las tabs */
+
+.ui-tabs .ui-tabs-hide {
+     display: none;
+}

@@ -9,12 +9,17 @@ from copy import copy
 # HACKISH - HACKISH - HACKISH
 from django.db.models.loading import cache
 
+from plantillator.data.base import normalize
 from plantillator.data.container import DataContainer
 from plantillator.data.dataobject import DataType
 from plantillator.data.dataobject import MetaData as MD
 
 from .dbbase import DJModel, Deferrer
 
+
+VARIABLES_TABLE = 'variables'
+VARIABLES_KEY = 'nombre'
+VARIABLES_VALUE = 'valor'
 
 APP_LABEL  = 'auto'
 APP_MODULE = __name__
@@ -65,18 +70,50 @@ class RootType(DataType(object)):
 
     """Tipo raiz (parent == None)"""
 
+    def __init__(self, *arg, **kw):
+        super(RootType, self).__init__(*arg, **kw)
+        self._vartab = None
+        self._varattr = set()
+
     def __getattr__(self, attr):
-        """Busca una tabla con el nombre dado y parent NULL"""
-        child_domd = self._type._DOMD.children[attr]._DOMD
-        objects = child_domd.objects.all()
-        # Si hago el setattr, los datos no se actualizan tras salvar
-        # setattr(self, attr, objects)
-        return objects
+        """Busca una atributo indicado en el espacio raiz
+
+        Primero, busca tablas con el nombre indicado y parent == None.
+        Si no encuentra nada, busca en las entradas de la tabla especial
+        VARIABLES_TABLE.
+        """
+        try:
+            # lo busco como subtabla
+            child_domd = self._type._DOMD.children[attr]._DOMD
+            objects = child_domd.objects.all()
+            # Si hago el setattr, los datos no se actualizan tras salvar
+            # setattr(self, attr, objects)
+            return objects
+        except KeyError:
+            # lo busco como variable
+            self._vartab = self._vartab or Cache(None, None, VARIABLES_TABLE)
+            if self._vartab:
+                try:
+                    objs = self._vartab.objects.all()
+                    item = (+objs(**{VARIABLES_KEY: attr}))
+                except IndexError:
+                    pass
+                else:
+                    result = normalize(getattr(item, VARIABLES_VALUE))
+                    self._varattr.add(attr)
+                    setattr(self, attr, result)
+                    return result
+        raise AttributeError(attr)
 
     def invalidate(self, attr=None):
         """Invalida la cache de objetos, o el item indicado"""
         children = self._type._DOMD.children
-        attrs = (attr,) if attr else children.keys()
+        if attr:
+            attrs = (attr,)
+            self._varattr.discard(attr)
+        else:
+            attrs = chain(self._varattr, children.keys())
+            self._varattr = set()
         for attr in attrs:
             try: delattr(self, attr)
             except: pass
@@ -225,6 +262,18 @@ class ModelCache(DataContainer):
             loop.remove(pk)
 
     def __call__(self, instance_pk=None, parent_pk=None, instance_name=None):
+        """Localiza el modelo asociado a una cierta instancia.
+
+        Localiza un modelo en funcion de ciertos parametros:
+        - pk: Clave primaria de la instancia que define al modelo.
+        - parent_pk: clave primaria de la instancia padre del modelo
+        - instance_name: nombre de la instancia
+
+        Si solo se especifica instance_pk: devuelve un unico modelo.
+        Si solo se especifica parent_pk: devuelve una lista de modelos hijo.
+        Si se especifica parent_pk y name: devuelve el modelo de la tabla
+           hija de "parent_pk" cuyo nombre coincida con "instance_name"
+        """
         item = self.instance_factory(instance_pk, parent_pk, instance_name)
         if instance_pk or instance_name:
             # el resultado debe ser una unica instancia

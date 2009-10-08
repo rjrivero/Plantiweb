@@ -19,8 +19,10 @@ class Profile(object):
         try:
             if userview:
                 self.view = userview.view.pk
+                print "VISTA DEL USUARIO: %d" % self.view
             else:
                 self.view = View.objects.get(name__iexact=DEFAULT_VIEW).pk
+                print "VISTA POR DEFECTO: %d" % self.view
         except View.DoesNotExist:
             self.view = None
         self.invalidate()

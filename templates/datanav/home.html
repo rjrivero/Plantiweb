@@ -5,15 +5,19 @@
 
 {% block stylesheets %}
 {{ block.super }}
-<link rel="stylesheet" href="/resources/css/home.css" type="text/css">
-<link rel="stylesheet" href="/resources/css/jquery.editable-select.css" type="text/css">
+<link rel="stylesheet" href="/resources/js-ui/themes/base/ui.tabs.css" type="text/css"/>
+<link rel="stylesheet" href="/resources/css/jquery.editable-select.css" type="text/css"/>
+<link rel="stylesheet" href="/resources/css/home.css" type="text/css"/>
 {% endblock %}
 
 {% block javascript %}
+<script type="text/javascript" src="/resources/js-ui/ui/ui.tabs.js"></script>
 <script type="text/javascript" src="/resources/jes/jquery.editable-select.js"></script>
+
 <script language="javascript"><!--
 $(document).ready(function() {
   $("#h_select").editableSelect();
+  $("#item_full_path").tabs();
 });
 --></script>
 {% endblock %}
@@ -40,22 +44,30 @@ $(document).ready(function() {
 
 </form>
 
-<div id="full_path">
-  <img src="/resources/img/arrow-down.png"/>
+<div id="item_full_path">
+  <!--<img src="/resources/img/arrow-down.png"/>-->
   <ul>
     {% for domd in item_full_path %}
-    <li>
+      <li>
       {% ifequal domd.pk pk %} 
-        <a  class="selected" href="?pk={{ domd.pk }}">{{domd.name}}</a>
+        <!--<a class="selected" href="?pk={{ domd.pk }}">{{domd.name}}</a>-->
+        <a href="#tabs{{ domd.pk }}"><span class="selected">{{domd.name}}</span></a>
       {% else %}
-        <a href="?pk={{ domd.pk }}">{{domd.name}}</a>
+        <!--<a href="?pk={{ domd.pk }}">{{domd.name}}</a>-->
+        <a href="#tabs{{ domd.pk }}"><span>{{domd.name}}</span></a>
       {% endifequal %}
-    </li>
+      </li>
     {% empty %}
-    Haga click sobre la flecha para filtrar
+    <!--Haga click sobre la flecha para filtrar-->
     {% endfor %}
   </ul>
+  {% for domd in item_full_path %}
+    <div id="tabs{{ domd.pk }}">
+      <p>&nbsp;</p>
+    </div>
+  {% endfor %}
 </div>
+
 
 {% if item_summary %}
   {% load attrib %}

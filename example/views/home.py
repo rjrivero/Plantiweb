@@ -4,6 +4,8 @@
 
 
 from gettext import gettext as _
+from collections import namedtuple
+
 
 from django.shortcuts import render_to_response
 from django.template import RequestContext
@@ -136,7 +138,7 @@ class HomeView(dict):
         self.add_filters(request)
         items = self.run_query(request, q)
 
-    class PathItem(tuple):
+    class PathItem(namedtuple("PathItem", "path, instance")):
 
         """Objeto precedido de ruta"""
 
@@ -146,20 +148,13 @@ class HomeView(dict):
             identities: campos a recuperar de los modelos ancestros
             instance: instancia
             """
-            obj = tuple.__new__(cls, ([], instance))
+            obj = super(HomeView.PathItem, cls).__new__(cls, [], instance)
             for attr in reversed(identities):
                 instance = instance.up
-                obj[0].append(getattr(instance, attr, None))
-            obj[0].reverse()
+                obj.path.append(getattr(instance, attr, None))
+            obj.path.reverse()
             return obj
 
-        @property
-        def path(self):
-            return self[0]
-
-        @property
-        def instance(self):
-            return self[1]
 
     def run_query(self, request, q):
         # Cargo los datos
@@ -172,7 +167,7 @@ class HomeView(dict):
             return
         profile = request.session['profile']
         model = items._type
-        full_path = (x._DOMD for x in model._DOMD.path)
+        full_path = tuple(x._DOMD for x in model._DOMD.path)
         try:
             ancestor = int(request.GET['pk'])
         except KeyError:
@@ -188,8 +183,10 @@ class HomeView(dict):
         self['item_full_path'] = full_path
         self['item_parents'] = parents
         self['item_summary'] = profile.summary(model, tuple())
+        print("ITEM SUMMARY: %s" % str(self['item_summary']))
         self['item_identity'] = profile.identity(model)
-        self['items'] = (HomeView.PathItem(model, identities, x) for x in items)
+        self['items'] = tuple(HomeView.PathItem(model, identities, x)
+                              for x in items)
         return items
 
     def add_history(self, request):
