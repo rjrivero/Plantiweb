@@ -1,0 +1,41 @@
+<div class="itemsdiv" id="itemsdiv{{ pk }}">
+{% if item_summary %}
+  {% load attrib %}
+  <table class="items" id="items{{ pk }}">
+  <thead><tr>
+    {% for name in item_parents %}
+      <th>({{ name|capfirst }})</th>
+    {% endfor %}
+    {% for name in item_summary %}
+      <th >{{ name|capfirst }}</th>
+    {% endfor %}
+  </tr></thead>
+  <tbody>
+  {% for path, instance in items %}
+    <!--<tr class="{% cycle 'odd' 'even' %}">-->
+    <!--{% cycle 'remark_odd' 'remark_even' as tdcolor %}-->
+    {% for value in path %}
+      <!--<td class="{{ tdcolor }}">{{ value }}</th>-->
+      <td>{{ value }}</th>
+    {% endfor %}
+    {% for name in item_summary %}
+      <td>{{ instance|getattr:name }}</td>
+    {% endfor %}
+    </tr>  
+  {% endfor %}
+  </tbody>
+  </table>
+  <script language="javascript">//<--
+    $("#items{{ pk }}").dataTable({
+      bPaginate: false,
+      bAutowidth: true,
+      oLanguage: {
+          sInfo: "_TOTAL_ resultado(s)",
+          sInfoEmpty: "0 resultados",
+          sInfoFiltered: " - filtrado de _MAX_ resultado(s) total(es)",
+          sSearch: "Filtro:"
+      }
+    });
+  --></script>
+{% endif %}
+</div>

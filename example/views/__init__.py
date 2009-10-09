@@ -3,6 +3,7 @@
 
 # los modelos estan definidos en el paquete "tipos"
 from .home import homeview
-from .node import node
-from .nodelist import nodelist
+from .grid import gridview
+#from .node import node
+#from .nodelist import nodelist
 

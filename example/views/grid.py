@@ -13,9 +13,9 @@ from .homecontext import HomeContext
 
 @login_required
 @with_profile
-def homeview(request):
+def gridview(request, pk=None):
     hc = HomeContext(request)
-    hc.analyze_query(request, hc['q'])
-    return render_to_response('datanav/home.html', hc,
+    hc.run_query(request, hc['q'], pk)
+    return render_to_response('datanav/grid.html', hc,
         context_instance=RequestContext(request))
 

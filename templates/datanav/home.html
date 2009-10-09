@@ -6,19 +6,27 @@
 {% block stylesheets %}
 {{ block.super }}
 <link rel="stylesheet" href="/resources/js-ui/themes/base/ui.tabs.css" type="text/css"/>
+<link rel="stylesheet" href="/resources/dt/css/demo_table.css" type="text/css"/>
+<link rel="stylesheet" href="/resources/dt/css/demo_table_jui.css" type="text/css"/>
 <link rel="stylesheet" href="/resources/css/jquery.editable-select.css" type="text/css"/>
 <link rel="stylesheet" href="/resources/css/home.css" type="text/css"/>
 {% endblock %}
 
 {% block javascript %}
+<script type="text/javascript" src="/resources/dt/js/jquery.dataTables.js"></script>
 <script type="text/javascript" src="/resources/js-ui/ui/ui.tabs.js"></script>
 <script type="text/javascript" src="/resources/jes/jquery.editable-select.js"></script>
 
 <script language="javascript"><!--
+
 $(document).ready(function() {
   $("#h_select").editableSelect();
-  $("#item_full_path").tabs();
+  $("#item_full_path").tabs({
+    cache: true,
+    ajaxOptions: { cache: false }
+  });
 });
+
 --></script>
 {% endblock %}
 
@@ -51,49 +59,16 @@ $(document).ready(function() {
       <li>
       {% ifequal domd.pk pk %} 
         <!--<a class="selected" href="?pk={{ domd.pk }}">{{domd.name}}</a>-->
-        <a href="#tabs{{ domd.pk }}"><span class="selected">{{domd.name}}</span></a>
+        <a href="../grid/{{ domd.pk }}"><span class="selected">{{domd.name}}</span></a>
       {% else %}
         <!--<a href="?pk={{ domd.pk }}">{{domd.name}}</a>-->
-        <a href="#tabs{{ domd.pk }}"><span>{{domd.name}}</span></a>
+        <a href="../grid/{{ domd.pk }}"><span>{{domd.name}}</span></a>
       {% endifequal %}
       </li>
     {% empty %}
     <!--Haga click sobre la flecha para filtrar-->
     {% endfor %}
   </ul>
-  {% for domd in item_full_path %}
-    <div id="tabs{{ domd.pk }}">
-      <p>&nbsp;</p>
-    </div>
-  {% endfor %}
 </div>
-
-
-{% if item_summary %}
-  {% load attrib %}
-  <table id="items">
-  <thead><tr>
-    {% for name in item_parents %}
-      <th>({{ name|capfirst }})</th>
-    {% endfor %}
-    {% for name in item_summary %}
-      <td>{{ name|capfirst }}</td>
-    {% endfor %}
-  </tr></thead>
-  <tbody>
-  {% for path, instance in items %}
-    <tr class="{% cycle 'odd' 'even' %}">
-    <!--{% cycle 'remark_odd' 'remark_even' as tdcolor %}-->
-    {% for value in path %}
-      <th class="{{ tdcolor }}">{{ value }}</th>
-    {% endfor %}
-    {% for name in item_summary %}
-      <td>{{ instance|getattr:name }}</td>
-    {% endfor %}
-    </tr>  
-  {% endfor %}
-  </tbody>
-  </table>
-{% endif %}
 
 {% endblock %}

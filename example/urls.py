@@ -20,10 +20,11 @@ urlpatterns = patterns('example.views',
 urlpatterns = urlpatterns + patterns('example.views',
     # Navegacion
     url(r'^home/$', 'homeview', name='homeview'),
-    url(r'^home/(?P<attr>\w[\w\d]*)/$', 'nodelist', name='rootview'),
-    url(r'^list(?P<path>(/\w[\w\d]*)+)/(?P<id>\d+)/(?P<attr>\w[\w\d]*)/$',
-           'nodelist', name='listview'),
-    url(r'^node(?P<path>(/\w[\w\d]*)+)/(?P<id>\d+)/$', 'node',
-           name='nodeview'),
+    url(r'^grid/(?P<pk>\d+)/$', 'gridview', name='gridview'),
+    #url(r'^home/(?P<attr>\w[\w\d]*)/$', 'nodelist', name='rootview'),
+    #url(r'^list(?P<path>(/\w[\w\d]*)+)/(?P<id>\d+)/(?P<attr>\w[\w\d]*)/$',
+    #       'nodelist', name='listview'),
+    #url(r'^node(?P<path>(/\w[\w\d]*)+)/(?P<id>\d+)/$', 'node',
+    #       name='nodeview'),
 )
 

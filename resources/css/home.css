@@ -8,13 +8,21 @@
   padding: 1.2em;
 }
 
-#items {
-  width: 100%;
+.itemsdiv {
   margin: 0;
+  padding: 0;
+  border: 0;
+  font-family: arial,helvetica,sans-serif;
+  font-size: normal;
+}
+
+.items {
+  width: 100%;
+  margin: 1em 0 1em 0;
   padding: 0;
 }
 
-#items thead th, #items thead td {
+.items thead th, .items thead td {
  font-weight: bold;
  text-align: center;
  background-color: #e1e1ff;
@@ -22,17 +30,17 @@
  padding: 1em;
 }
 
-#items thead th {
+.items thead th {
  font-style: italic;
 }
 
-#items tbody th {
+.items tbody th {
   font-weight: normal;
   text-align: center;
   font-style: italic;
 }
 
-#items tbody td {
+.items tbody td {
   text-align: center;
 }
 

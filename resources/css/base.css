@@ -23,7 +23,7 @@ table {
 }
 
 input, textarea, select {
- font-family: Verdana, Arial, Helvetica, sans-serif;
+ font-family: Arial, Helvetica, sans-serif;
  font-size: medium;
  font-weight: normal;
  color: black;
@@ -63,7 +63,8 @@ a:hover {
  padding: 1.2em;
  /*background-color: #663366;*/
  background-color: #e1e1ff;
- color: white;
+ /*color: white;*/
+ color: black;
  text-align: left;
 }
 
@@ -75,7 +76,8 @@ a:hover {
 }
 
 #usertools a:link, #usertools a:visited, #usertools a:hover {
- color: white;
+ /*color: white;*/
+ color: black;
  text-decoration: none;
  font-style: italic;
  font-size: small;
