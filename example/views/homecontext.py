@@ -176,7 +176,9 @@ class HomeContext(dict):
         full_path = self['item_full_path']
         model = items._type
         profile = request.session['profile']
+        print "PK: %s, ANCESTORS: %s" % (str(pk), str(set(x._DOMD.pk for x in model._DOMD.parents))) 
         if pk in set(x._DOMD.pk for x in model._DOMD.parents):
+            print "SOLICITAN LA PK DE UN ANCESTRO!"
             while items._type._DOMD.pk != pk:
                 items = items.up
             model = items._type  

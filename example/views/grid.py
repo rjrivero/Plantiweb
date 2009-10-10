@@ -15,7 +15,7 @@ from .homecontext import HomeContext
 @with_profile
 def gridview(request, pk=None):
     hc = HomeContext(request)
-    hc.run_query(request, hc['q'], pk)
+    hc.run_query(request, hc['q'], int(pk) if pk is not None else None)
     return render_to_response('datanav/grid.html', hc,
         context_instance=RequestContext(request))
 

@@ -54,7 +54,7 @@ $(document).ready(function() {
 <div id="item_full_path">
   <!--<img src="/resources/img/arrow-down.png"/>-->
   <ul>
-    {% for domd in item_full_path %}
+    {% for domd in item_full_path reversed %}
       <li>
       {% ifequal domd.pk pk %} 
         <!--<a class="selected" href="?pk={{ domd.pk }}">{{domd.name}}</a>-->
