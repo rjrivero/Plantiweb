@@ -19,10 +19,8 @@ class Profile(object):
         try:
             if userview:
                 self.view = userview.view.pk
-                print "VISTA DEL USUARIO: %d" % self.view
             else:
                 self.view = View.objects.get(name__iexact=DEFAULT_VIEW).pk
-                print "VISTA POR DEFECTO: %d" % self.view
         except View.DoesNotExist:
             self.view = None
         self.invalidate()
@@ -58,9 +56,6 @@ class Profile(object):
             if default is None:
                 raise KeyError(model._DOMD.fullname)
             return default
-        else:
-            print "FIELDS: %s" % repr(item.fields)
-            print "SUMMARY: %s" % repr(item.summary)
         return getattr(item, attrib)
 
     def _identity(self, model, pk):

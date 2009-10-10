@@ -81,3 +81,33 @@
 .ui-tabs .ui-tabs-hide {
  display: none;
 }
+
+.item_menudiv {
+ position: absolute;
+ display: none;
+ padding: 1em;
+ background: #F0F0F0;
+ border: 1px solid black;
+ margin: 0 0 0 32px;
+ text-align: left;
+ font-weight: normal;
+ font-style: normal;
+}
+
+.item_menudiv ul {
+  list-style-type: none;
+  list-style-image: none;
+  list-style-position: outside;
+  margin: 0;
+  padding:0;
+}
+
+.item_menudiv input[type=checkbox] {
+ margin-right: 1em;
+}
+
+.item_menudiv img {
+ border: 0;
+ padding: 0;
+ margin: 0;
+}

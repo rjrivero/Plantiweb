@@ -176,9 +176,7 @@ class HomeContext(dict):
         full_path = self['item_full_path']
         model = items._type
         profile = request.session['profile']
-        print "PK: %s, ANCESTORS: %s" % (str(pk), str(set(x._DOMD.pk for x in model._DOMD.parents))) 
         if pk in set(x._DOMD.pk for x in model._DOMD.parents):
-            print "SOLICITAN LA PK DE UN ANCESTRO!"
             while items._type._DOMD.pk != pk:
                 items = items.up
             model = items._type  
@@ -187,7 +185,11 @@ class HomeContext(dict):
         identities = tuple(profile.identity(x) for x in model._DOMD.parents)
         self['item_parents'] = parents
         self['item_summary'] = profile.summary(model, tuple())
+        fields = profile.fields(model, tuple())
+        visible = set(self['item_summary'])
+        self['item_hiddens'] = tuple(x for x in fields if x not in visible)
         self['item_identity'] = profile.identity(model)
+        self['item_fixedcount'] = len(parents) + len(self['item_summary'])
         self['items'] = tuple(HomeContext.PathItem(model, identities, x)
                               for x in items)
         return items

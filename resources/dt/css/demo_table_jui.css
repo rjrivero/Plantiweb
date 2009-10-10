@@ -108,10 +108,7 @@ table.display thead th {
 }
 */
 .dataTables_filter {
- text-align: right;
- background: #e0e0ff;
  padding: 0.2em;
- width: 100%;
 }
 
 .dataTables_info {
