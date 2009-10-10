@@ -1,4 +1,5 @@
-<div class="itemsdiv" id="itemsdiv{{ pk }}">
+<body class="nomargin">
+<div class="nomargin" id="itemsdiv{{ pk }}">
 {% if item_summary %}
   {% load attrib %}
   <table class="items" id="items{{ pk }}">
@@ -12,11 +13,11 @@
   </tr></thead>
   <tbody>
   {% for path, instance in items %}
-    <!--<tr class="{% cycle 'odd' 'even' %}">-->
+    <tr>
     <!--{% cycle 'remark_odd' 'remark_even' as tdcolor %}-->
     {% for value in path %}
       <!--<td class="{{ tdcolor }}">{{ value }}</th>-->
-      <td>{{ value }}</th>
+      <td>{{ value }}</td>
     {% endfor %}
     {% for name in item_summary %}
       <td>{{ instance|getattr:name }}</td>
@@ -39,3 +40,4 @@
   --></script>
 {% endif %}
 </div>
+</body>

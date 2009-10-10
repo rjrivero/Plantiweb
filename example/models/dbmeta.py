@@ -113,17 +113,13 @@ class MetaData(MD):
         """
         dynamics = list()
         for field in instance.field_set.all():
-            name, _name = field.name, field._name
-            attrs[_name] = field.field
+            name, _name, code = field.name, field._name, field.code
             fields.add(name)
+            attrs[_name] = field.field
             dbfields[name] = _name
-            try:
-                dynamic = field.dynamic
-            except Dynamic.DoesNotExist:
-                pass
-            else:
+            if code is not None:
                 source_id = '<%s.%s.code>' % (instance.fullname, name)
-                code = compile(dynamic.code, source_id, 'eval')
+                code = compile(code, source_id, 'eval')
                 dynamics.append((field, code))
         return dynamics
 
@@ -166,7 +162,7 @@ class MetaData(MD):
           - Devuelve una lista campos enlazados
         """
         groups = dict()
-        for link in instance.link_set.all():
+        for link in instance.link_set.select_related('related').all():
             fields.add(link._name)
             attrs[link._name] = link.field
             groups.setdefault(link.group, []).append(link)

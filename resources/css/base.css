@@ -1,7 +1,7 @@
 /* Estilos basicos de elementos */
 
 body {
- font-family: Arial, Helvetica, sans-serif;
+ font-family: Helvetica,Arial,sans-serif;
  font-size: medium;
  font-weight: normal;
  color: black;
@@ -55,7 +55,7 @@ a:hover {
 
 #headercontainer {
  /*background-color: #f0f060; */
- margin: 0 0 1em 0;
+ margin: 0 0 0 0;
 }
 
 #header {

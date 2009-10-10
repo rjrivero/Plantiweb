@@ -1,0 +1,69 @@
+Index: django/db/models/sql/query.py
+===================================================================
+--- django/db/models/sql/query.py	(revisione 11580)
++++ django/db/models/sql/query.py	(copia locale)
+@@ -96,6 +96,7 @@
+         self.extra_where = ()
+         self.extra_params = ()
+         self.extra_order_by = ()
++        self.extra_join = ()
+ 
+         # A tuple that is a set of model field names and either True, if these
+         # are the fields to defer, or False if these are the only fields to
+@@ -236,6 +237,7 @@
+         obj.extra_where = self.extra_where
+         obj.extra_params = self.extra_params
+         obj.extra_order_by = self.extra_order_by
++        obj.extra_join = self.extra_join
+         obj.deferred_loading = deepcopy(self.deferred_loading)
+         if self.filter_is_sticky and self.used_aliases:
+             obj.used_aliases = self.used_aliases.copy()
+@@ -415,6 +417,9 @@
+         result.append('FROM')
+         result.extend(from_)
+         params.extend(f_params)
++        
++        if self.extra_join:
++            result.append(' '.join(self.extra_join))
+ 
+         if where:
+             result.append('WHERE %s' % where)
+@@ -2157,7 +2162,7 @@
+         self.related_select_cols = []
+         self.related_select_fields = []
+ 
+-    def add_extra(self, select, select_params, where, params, tables, order_by):
++    def add_extra(self, select, select_params, where, params, tables, order_by, join):
+         """
+         Adds data to the various extra_* attributes for user-created additions
+         to the query.
+@@ -2190,6 +2195,8 @@
+             self.extra_tables += tuple(tables)
+         if order_by:
+             self.extra_order_by = order_by
++        if join:
++            self.extra_join += tuple(join)
+ 
+     def clear_deferred_loading(self):
+         """
+Index: django/db/models/query.py
+===================================================================
+--- django/db/models/query.py	(revisione 11580)
++++ django/db/models/query.py	(copia locale)
+@@ -601,14 +601,14 @@
+         return obj
+ 
+     def extra(self, select=None, where=None, params=None, tables=None,
+-              order_by=None, select_params=None):
++              order_by=None, select_params=None, join=None):
+         """
+         Adds extra SQL fragments to the query.
+         """
+         assert self.query.can_filter(), \
+                 "Cannot change a query once a slice has been taken"
+         clone = self._clone()
+-        clone.query.add_extra(select, select_params, where, params, tables, order_by)
++        clone.query.add_extra(select, select_params, where, params, tables, order_by, join)
+         return clone
+ 
+     def reverse(self):

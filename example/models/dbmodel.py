@@ -16,6 +16,7 @@ from .dblog import app_label
 from .dbcache import Cache
 from .dbraw import *
 from .dbfields import *
+from .dbjoin import QLeftOuterJoin
 
 
 class Table(models.Model):
@@ -174,11 +175,30 @@ FIELDS = {
 }
 
 
+class FieldManager(CatchManager):
+
+    """FieldManager especifico para la clase "Field".
+
+    Trata de recuperar, con un left join, el codigo dinamico asociado
+    al campo, si lo hay.
+
+    Almacena el codigo en la variable "_code".
+    """
+
+    def get_query_set(self):
+        d, f = Dynamic._meta.db_table, Field._meta.db_table
+        raw_set = super(FieldManager, self).get_query_set()
+        return raw_set.extra(
+            select = { '_code': '`%s`.`code`' % d },
+            join = ['LEFT JOIN %s ON (%s.related_id = %s.id)' % (d, d, f)]
+        )
+
+
 class Field(BaseField):
 
     """Campo tipado de la base de datos"""
     
-    objects = CatchManager()
+    objects = FieldManager()
     name    = DBIdentifierField(verbose_name=_('nombre'))
     table   = models.ForeignKey(Table)
     kind    = models.CharField(max_length=32,
@@ -214,12 +234,23 @@ class Field(BaseField):
         return FIELDS[self.kind].default
 
     @property
+    def code(self):
+        """Devuelve el codigo dinamico asociado a un campo, o None si no hay"""
+        try:
+            return self._code
+        except AttributeError:
+            # no se ha accedido al objeto por el manager, no tenemos cargado
+            # el campo "code". Usamos el metodo normal.
+            try:
+                self._code = self.dynamic.code
+            except Dynamic.DoesNotExist:
+                self._code = None
+            return self._code
+
+    @property
     def _name(self):
         """Modifica el nombre si tenemos asociado codigo dinamico"""
-        try:
-            return self.dynamic.name
-        except Dynamic.DoesNotExist:
-            return self.name
+        return self.name if self.code is None else '_%s' % str(self.name)
 
     def _on_changed(self, old):
         """Actualiza los Links si se salvan cambios en el campo"""
