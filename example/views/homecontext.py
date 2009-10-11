@@ -186,16 +186,16 @@ class HomeContext(dict):
         fields = profile.fields(model, tuple())
         summary = profile.summary(model, tuple())
         visible = set(summary)
+        self['model'] = model
         self['pk'] = domd.pk
         self['item_comments'] = domd.comments
         self['item_parents'] = parents
         self['item_summary'] = summary
         self['item_hiddens'] = tuple(x for x in fields if x not in visible)
         self['item_identity'] = profile.identity(model)
-        self['item_fixedcount'] = len(parents) + len(summary)
         self['items'] = tuple(HomeContext.PathItem(model, identities, x)
                               for x in items)
-        return items
+        return self['items']
 
     def add_history(self, request):
         """Actualiza el historico de comandos"""

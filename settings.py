@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Django settings for trunk project.
 
 
@@ -93,6 +94,11 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.sites',
     'django.contrib.admin',
+    'django.contrib.markup',
     'plantiweb.example',
 )
+
+# Settings para markitup
+MARKITUP_SET = 'markitup/sets/markdown'
+MARKITUP_SKIN = 'markitup/skins/markitup'
 

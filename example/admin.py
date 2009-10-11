@@ -3,7 +3,10 @@
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 from django.contrib import admin
+from django.db.models import TextField
 from .models import *
+
+from markitup.widgets import MarkItUpWidget
 
 
 class FieldInline(admin.TabularInline):
@@ -29,10 +32,12 @@ class UserViewInline(admin.TabularInline):
 
 
 class TableAdmin(admin.ModelAdmin):
+
     list_display = ['fullname', 'name', 'parent']
     fields  = ['name', 'parent', 'comment']
     inlines = [FieldInline, LinkInline]
     ordering = ['parent']
+    formfield_overrides = { TextField: {'widget': MarkItUpWidget} }
 
 
 #class LinkAdmin(admin.ModelAdmin):

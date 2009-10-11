@@ -1,0 +1,28 @@
+{% extends "datanav/base.html" %}
+
+{% block title %}Ayuda para {{ fullname }}{% endblock %}
+{% block description %}Ayuda para {{ fullname }}{% endblock %}
+
+{% block stylesheets %}
+{{ block.super }}
+<link rel="stylesheet" href="/resources/css/help.css" type="text/css"/>
+{% endblock %}
+
+{% block content %}
+
+<div id="help_content">
+  <div id="table_help">
+    {% load markup %}
+    {% if help %}
+      {{ help|markdown }}
+    {% endif %}
+  </div>
+  <div id="field_help">
+    <dl>
+    {% for name, comment in fields %}
+      <dt>{{ name|capfirst }}</dt>
+      <dd>{{ comment }}</dd>
+    {% endfor %}
+    </dl>
+  </div>
+{% endblock %}

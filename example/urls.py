@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # -*- vim: expandtab tabstop=4 shiftwidth=4 smarttab autoindent
 
 from django.conf.urls.defaults import *
@@ -21,6 +22,7 @@ urlpatterns = urlpatterns + patterns('example.views',
     # Navegacion
     url(r'^home/$', 'homeview', name='homeview'),
     url(r'^grid/(?P<pk>\d+)/$', 'gridview', name='gridview'),
+    url(r'^help/(?P<pk>\d+)/$', 'helpview', name='helpview'),
     #url(r'^home/(?P<attr>\w[\w\d]*)/$', 'nodelist', name='rootview'),
     #url(r'^list(?P<path>(/\w[\w\d]*)+)/(?P<id>\d+)/(?P<attr>\w[\w\d]*)/$',
     #       'nodelist', name='listview'),

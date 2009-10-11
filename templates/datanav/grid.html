@@ -8,14 +8,21 @@
     <th>
       <img class="item_openmenu{{ pk }}" src="/resources/img/view_choose.png"/>
       <div class="item_menudiv" id="item_menudiv{{ pk }}">
-        <hr/>
-        <input type="checkbox" id="item_toggleall_{{ pk }}"/>&nbsp;Seleccionar&nbsp;filas
-        <hr/>
-        <ul id="visibility_cb{{ pk }}">
-        {% for hidden in item_hiddens %}
-         <li><input type="checkbox" id="item_cb{{ pk }}_{{ forloop.counter0 }}" value="{{ forloop.counter|add:item_fixedcount }}"/>&nbsp;{{ hidden|capfirst }}</li>
-        {% endfor %}
-        </ul>
+        <div class="item_menudiv_head">
+          <ul class="item_toolbar" id="toolbar{{ pk }}">
+            <li><a href="../help/{{ pk }}" target="_blank"><img src="/resources/img/help.png"/></a></li>
+          </ul>
+        </div>
+        <div class="item_menudiv_body" id="item_menudiv_body{{ pk }}">
+          <hr/>
+          <input type="checkbox" id="item_toggleall_{{ pk }}"/>&nbsp;Seleccionar&nbsp;filas
+          <hr/>
+          <ul id="visibility_cb{{ pk }}">
+          {% for hidden in item_hiddens %}
+           <li><input type="checkbox" id="item_cb{{ pk }}_{{ forloop.counter0 }}" value="{{ forloop.counter|add:item_fixedcount }}"/>&nbsp;{{ hidden|capfirst }}</li>
+          {% endfor %}
+          </ul>
+        </div>
       </div>
     </th>
     {% for name in item_parents %}
@@ -29,21 +36,13 @@
     {% endfor %}
   </tr></thead>
   <tbody>
-  {% for path, instance in items %}
+  {% for row in item_griddata %}
     <tr>
     <td>
       <input type="checkbox" value="{{ instance.pk }}"/>
     </td>
-    <!--{% cycle 'remark_odd' 'remark_even' as tdcolor %}-->
-    {% for value in path %}
-      <!--<td class="{{ tdcolor }}">{{ value }}</th>-->
-      <td>{{ value }}</td>
-    {% endfor %}
-    {% for name in item_summary %}
-      <td>{{ instance|getattr:name }}</td>
-    {% endfor %}
-    {% for name in item_hiddens %}
-      <td>{{ instance|getattr:name }}</td>
+    {% for cell in row %}
+      <td class="{{ cell.css }}">{{ cell.value }}</td>
     {% endfor %}
     </tr>  
   {% endfor %}
@@ -53,7 +52,7 @@
 
     function onInitComplete{{ pk }}() {
       /* muevo el filtro al menu popup */
-      $("#items{{ pk }}_filter").prependTo($("#item_menudiv{{ pk }}"));
+      $("#items{{ pk }}_filter").prependTo($("#item_menudiv_body{{ pk }}"));
       /* Abro el menu popup cuando se pulse sobre la cabecera */
       $(".item_openmenu{{ pk }}").click(function(event) {
         $("#item_menudiv{{ pk }}").toggle();

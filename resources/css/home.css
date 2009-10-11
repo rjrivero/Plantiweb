@@ -35,13 +35,13 @@
 }
 
 .items thead th {
- font-style: italic;
+ /*font-style: italic;*/
 }
 
 .items tbody th {
   font-weight: normal;
   text-align: center;
-  font-style: italic;
+  /*font-style: italic;*/
 }
 
 .items tbody td {
@@ -49,23 +49,15 @@
 }
 
 .odd {
- color: black;
  background-color: white;
 }
 
 .even {
- color: black;
  background-color: #efefff;
 }
 
-.remark_odd {
- color: black;
- background-color: white;
-}
-
-.remark_even {
- color: black;
- background-color: #efefff;
+.item_dynamic {
+ color: red;
 }
 
 /*
@@ -110,4 +102,22 @@
  border: 0;
  padding: 0;
  margin: 0;
+}
+
+ul .item_toolbar {
+ display: inline;
+ list-style-type: none;
+ list-style-image: none;
+ list-style-position: outside;
+}
+
+.item_toolbar li {
+ display: inline;
+ margin: 0 2em 0 0;
+}
+
+.item_menudiv_head {
+ background: #d0d0d0;
+ margin-bottom: 0.5em;
+ padding: 0.2em 0.2em 0 0.2em;
 }

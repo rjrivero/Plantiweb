@@ -222,7 +222,7 @@ class DJQuerySet(models.query.QuerySet):
         """Obtiene el atributo seleccionado"""
         domd = self._type._DOMD
         if attrib == 'pk' or attrib in domd.attribs:
-            if attrib in domd.dynamic:
+            if attrib in domd.dynamics:
                 # el campo es calculado, no tengo mas remedio
                 # que calcularlo por cada elemento del set.
                 return BaseSet(getattr(x, attrib) for x in self)

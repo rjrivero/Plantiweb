@@ -46,7 +46,7 @@ class MetaData(MD):
         atributos que se almacenan en el objeto:
           - filters: diccionario de filtros para los campos enlazados.
           - dbattribs: mapeo de nombre de propiedad a nombre de campo en bd.
-          - dynamic: lista de campos calculados
+          - dynamics: lista de campos calculados
 
         aparte de los de dbcache.MetaData
         """
@@ -73,7 +73,7 @@ class MetaData(MD):
         filters  = self._get_links(instance, model_attrs)
         # Creo metadata y modelo!
         super(MetaData, self).__init__(pk, name, model_attrs, parent)
-        self.dynamic = set(x[0].name for x in dynamics)
+        self.dynamics = set(x[0].name for x in dynamics)
         self.identity = tuple(x.name for x in instance.uniques)
         if not self.identity:
             self.identity = ('pk',)
@@ -110,7 +110,7 @@ class MetaData(MD):
           - Agrega el nombre y tipo de campo a "attrs"
           - Agrega el nombre de la propiedad dinamica a "fields"
           - Agrega el mapeo estatico -> dinamico a "dbfields"
-          - Devuelve una lista de tuplas (Field, Dynamic)
+          - Devuelve una lista de tuplas (Field, codigo "compilado")
         """
         dynamics = list()
         for field in instance.field_set.all():
