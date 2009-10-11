@@ -180,16 +180,19 @@ class HomeContext(dict):
             while items._type._DOMD.pk != pk:
                 items = items.up
             model = items._type  
-        self['pk'] = model._DOMD.pk
         parents = tuple(x._DOMD.name for x in model._DOMD.parents)
-        identities = tuple(profile.identity(x) for x in model._DOMD.parents)
-        self['item_parents'] = parents
-        self['item_summary'] = profile.summary(model, tuple())
+        domd = model._DOMD
+        identities = tuple(profile.identity(x) for x in domd.parents)
         fields = profile.fields(model, tuple())
-        visible = set(self['item_summary'])
+        summary = profile.summary(model, tuple())
+        visible = set(summary)
+        self['pk'] = domd.pk
+        self['item_comments'] = domd.comments
+        self['item_parents'] = parents
+        self['item_summary'] = summary
         self['item_hiddens'] = tuple(x for x in fields if x not in visible)
         self['item_identity'] = profile.identity(model)
-        self['item_fixedcount'] = len(parents) + len(self['item_summary'])
+        self['item_fixedcount'] = len(parents) + len(summary)
         self['items'] = tuple(HomeContext.PathItem(model, identities, x)
                               for x in items)
         return items

@@ -58,20 +58,21 @@ class MetaData(MD):
             def up(self):
                 return Cache.data
         pk, name = instance.pk, instance.name
-        fields   = set()
-        dbfields = dict()
-        attrs    = {
+        self.comment = instance.comment
+        self.attribs = set()
+        self.dbattribs = dict()
+        self.comments = dict()
+        model_attrs = {
             '_up': up,
             '_id': models.AutoField(primary_key=True),
 
         }
         # analizo los campos normales y saco campos dinamicos.
-        dynamics = self._get_fields(instance, fields, attrs, dbfields)
+        dynamics = self._get_fields(instance, model_attrs)
         # analizo los campos enlazados y saco filtros.
-        filters  = self._get_links(instance, fields, attrs)
+        filters  = self._get_links(instance, model_attrs)
         # Creo metadata y modelo!
-        super(MetaData, self).__init__(pk, name, attrs, parent)
-        self.attribs, self.dbattribs = fields, dbfields
+        super(MetaData, self).__init__(pk, name, model_attrs, parent)
         self.dynamic = set(x[0].name for x in dynamics)
         self.identity = tuple(x.name for x in instance.uniques)
         if not self.identity:
@@ -102,7 +103,7 @@ class MetaData(MD):
     def objects(self):
         return self._type.objects.select_related(*self._depth_string)
 
-    def _get_fields(self, instance, fields, attrs, dbfields):
+    def _get_fields(self, instance, model_attrs):
         """Lee los Fields y crea una lista de campos dinamicos.
         Analiza el conjunto de campos de la instancia y
         pre-procesa los campos dinamicos:
@@ -114,9 +115,10 @@ class MetaData(MD):
         dynamics = list()
         for field in instance.field_set.all():
             name, _name, code = field.name, field._name, field.code
-            fields.add(name)
-            attrs[_name] = field.field
-            dbfields[name] = _name
+            model_attrs[_name] = field.field
+            self.attribs.add(name)
+            self.dbattribs[name] = _name
+            self.comments[name] = field.comment
             if code is not None:
                 source_id = '<%s.%s.code>' % (instance.fullname, name)
                 code = compile(code, source_id, 'eval')
@@ -153,7 +155,7 @@ class MetaData(MD):
             prop = self._build_property(name, hidden, code)
             setattr(self._type, name, prop)
 
-    def _get_links(self, instance, fields, attrs):
+    def _get_links(self, instance, model_attrs):
         """Lee los links y crea una lista de filtros.
         Analiza el conjunto de campos de la instancia y
         pre-procesa los campos enlazados:
@@ -163,8 +165,10 @@ class MetaData(MD):
         """
         groups = dict()
         for link in instance.link_set.select_related('related').all():
-            fields.add(link._name)
-            attrs[link._name] = link.field
+            name, _name = link.name, link._name
+            self.attribs.add(name)
+            self.dbattribs[name] = _name
+            model_attrs[name] = link.field
             groups.setdefault(link.group, []).append(link)
         if not groups:
             return tuple()
@@ -270,4 +274,3 @@ class MetaData(MD):
 
 def model_factory(instance):
     return MetaData(instance)._type
-

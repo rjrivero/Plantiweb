@@ -11,9 +11,10 @@
 {% endblock %}
 
 {% block javascript %}
-<script type="text/javascript" src="/resources/dt/js/jquery.dataTables.js"></script>
-<script type="text/javascript" src="/resources/js-ui/ui/ui.tabs.js"></script>
-<script type="text/javascript" src="/resources/js-ui/ui/ui.draggable.js"></script>
+{{ block.super }}
+<script type="text/javascript" src="/resources/dt/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="/resources/js-ui/ui/minified/ui.tabs.min.js"></script>
+<script type="text/javascript" src="/resources/js-ui/ui/minified/ui.draggable.min.js"></script>
 <script type="text/javascript" src="/resources/jes/jquery.editable-select.js"></script>
 
 <script language="javascript"><!--
@@ -45,27 +46,21 @@ $(document).ready(function() {
       <option value="{{ option }}"{% ifequal selected forloop.counter0 %} selected{% endifequal %}>{{ option }}</option>
     {% endfor %}
   </select>
-  <!--<input type="text" id="h_text" name="q" value="{{ q|escapejs }}"/>-->
   <input type="submit" value="Buscar"/>
 </div>
 
 </form>
 
 <div id="item_full_path">
-  <!--<img src="/resources/img/arrow-down.png"/>-->
   <ul>
     {% for domd in item_full_path reversed %}
       <li>
       {% ifequal domd.pk pk %} 
-        <!--<a class="selected" href="?pk={{ domd.pk }}">{{domd.name}}</a>-->
-        <a href="../grid/{{ domd.pk }}"><span class="selected">{{domd.name}}</span></a>
+        <a href="../grid/{{ domd.pk }}"><span>{{domd.name}}</span></a>
       {% else %}
-        <!--<a href="?pk={{ domd.pk }}">{{domd.name}}</a>-->
         <a href="../grid/{{ domd.pk }}"><span>{{domd.name}}</span></a>
       {% endifequal %}
       </li>
-    {% empty %}
-    <!--Haga click sobre la flecha para filtrar-->
     {% endfor %}
   </ul>
 </div>
