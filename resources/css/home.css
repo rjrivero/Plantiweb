@@ -135,3 +135,11 @@ ul.item_toolbar {
  text-align: left;
  padding: 0.5em 2em 0.5em 2em;
 }
+
+/*
+ Estilos del bloque toplevels, donde se muestra la lista de tablas
+ de primer nivel si no hay ninguna busqueda
+*/
+#toplevels {
+ margin-left: 1em;
+}

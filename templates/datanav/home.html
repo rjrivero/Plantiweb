@@ -118,10 +118,12 @@ function onInitComplete(pk, children) {
 $(document).ready(function() {
   $("#h_select").editableSelect();
   detailDiv = $("#item_details");
+  {% if item_full_path %}
   $oTabs = $("#item_full_path").tabs({
     cache: true,
     ajaxOptions: { cache: false }
   });
+  {% endif %}
 });
 
 --></script>
@@ -156,18 +158,31 @@ $(document).ready(function() {
 
 </form>
 
-<div id="item_full_path">
-  <ul>
-    {% for domd in item_full_path reversed %}
-      <li>
-      {% ifequal domd.pk pk %} 
-        <a href="../grid/{{ domd.pk }}"><span>{{domd.name}}</span></a>
-      {% else %}
-        <a href="../grid/{{ domd.pk }}"><span>{{domd.name}}</span></a>
-      {% endifequal %}
-      </li>
+{% if item_full_path %}
+  <div id="item_full_path">
+    <ul>
+      {% for domd in item_full_path reversed %}
+        <li>
+        {% ifequal domd.pk pk %} 
+          <a href="../grid/{{ domd.pk }}/?q={{ q|urlencode }}"><span>{{domd.name}}</span></a>
+        {% else %}
+          <a href="../grid/{{ domd.pk }}/?q={{ q|urlencode }}"><span>{{domd.name}}</span></a>
+        {% endifequal %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% else %}
+  <div class="base_headercontainer">
+    <div class="base_header">
+      Para navegar por el contenido, introduzca una b&uacute;squeda o comience eligiendo una de las tablas siguientes.
+    </div>
+    <ul id="toplevels">
+    {% for toplevel_table in toplevels %}
+      <li><a href="?q={{ toplevel_table|urlencode }}">{{ toplevel_table|capfirst }}</a></li>
     {% endfor %}
-  </ul>
-</div>
+    </ul>
+  </div>
+{% endif %}
 
 {% endblock %}

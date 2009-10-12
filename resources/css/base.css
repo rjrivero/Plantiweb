@@ -53,12 +53,12 @@ a:hover {
 
 /* Estilos de la cabecera */
 
-#headercontainer {
+.base_headercontainer {
  /*background-color: #f0f060; */
  margin: 0 0 0 0;
 }
 
-#header {
+.base_header {
  width: 100%;
  padding: 1.2em;
  /*background-color: #663366;*/

@@ -54,7 +54,7 @@ def gridview(request, pk=None):
     hc = HomeContext(request)
     items = hc.run_query(request, hc['q'], int(pk) if pk is not None else None)
     # "customizo" los datos para hacer su representacion mas facil.
-    if items:
+    if items is not None:
         parents = hc['item_parents']
         summary = hc['item_summary']
         hiddens = hc['item_hiddens']

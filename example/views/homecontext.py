@@ -156,12 +156,16 @@ class HomeContext(dict):
         except Exception, e:
             # TODO: volcar adecuadamente los datos de la excepcion
             print "EXCEPCION! %s, query: %s" % (str(e), q)
-            return
+            items = None
         if not hasattr(items, '__iter__') or not hasattr(items, '_type'):
             print "LA QUERY NO HA RESULTADO EN UN DATASET!"
-            return
-        model = items._type
-        self['item_full_path'] = tuple(x._DOMD for x in model._DOMD.path)
+            items = None
+        if items is not None:
+            model = items._type
+            self['item_full_path'] = tuple(x._DOMD for x in model._DOMD.path)
+        else:
+            self['item_full_path'] = tuple()
+            self['toplevels'] = Cache.root._DOMD.children.all().keys()
         return items
 
     def run_query(self, request, q, pk=None):
@@ -173,7 +177,7 @@ class HomeContext(dict):
         llegar a una tabla cuya pk sea la indicada.
         """
         items = self.analyze_query(request, q)
-        if not items:
+        if items is None:
             return
         full_path = self['item_full_path']
         model = items._type
@@ -206,7 +210,8 @@ class HomeContext(dict):
     def add_history(self, request):
         """Actualiza el historico de comandos"""
         history = request.session.setdefault('history', [])
-        q = request.GET.get('q', request.session.get('q', u''))
+        #q = request.GET.get('q', request.session.get('q', u''))
+        q = request.GET.get('q', u'').strip()
         h = int(request.GET.get('h', DEFAULT_HIST_LEN))
         h_list = (5, 10, 15, 20, 25)
         if 0 < h <= h_list[-1]:
@@ -220,7 +225,7 @@ class HomeContext(dict):
             except ValueError:
                 selected = 0
                 history.insert(0, q)
-        request.session['q'] = q
+        #request.session['q'] = q
         request.session['history'] = history
         self.update(**locals())
         return q
@@ -246,4 +251,3 @@ class HomeContext(dict):
             request.session['filters'] = filters
         self.update(**locals())
         return filters
-

@@ -17,6 +17,7 @@ ADMINS = (
 MANAGERS = ADMINS
 
 CACHE_BACKEND = "locmem:///"
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 DATABASE_ENGINE = 'mysql'             # 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
 DATABASE_NAME = 'Example'             # Or path to database file if using sqlite3.
