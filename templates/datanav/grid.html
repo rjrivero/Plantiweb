@@ -32,7 +32,7 @@
         </div>
       </div>
     </th>
-    {% for name in item_parents %}
+    {% for pk, name in item_parents.iteritems %}
       <th>({{ name|capfirst }})</th>
     {% endfor %}
     {% for name in item_summary %}
@@ -46,7 +46,7 @@
   {% for row in item_griddata %}
     <tr>
     <td>
-      <input type="checkbox" value="{{ instance.pk }}"/>
+      <input type="checkbox" value="{{ row.pk }}"/>
     </td>
     {% for cell in row %}
       <td class="{{ cell.css }}">{{ cell.value }}</td>
@@ -70,7 +70,7 @@ oTable[{{ pk }}] = $("#items{{ pk }}").dataTable({
   aaSorting: [[1, 'asc']],
   aoColumns: [
     { bSortable: false, sWidth: "32px" }
-    {% for name in item_parents %}
+    {% for pk, name in item_parents.iteritems %}
       , { bVisible: true }
     {% endfor %}
     {% for name in item_summary %}
@@ -80,7 +80,14 @@ oTable[{{ pk }}] = $("#items{{ pk }}").dataTable({
       , { bVisible: false }
     {% endfor %}
   ],
-  fnInitComplete: function() { onInitComplete({{ pk }}); }
+  fnInitComplete: function() {
+    var children = [
+      {% for pk, name in item_children.iteritems %}
+        [{{ pk }}, "{{ name|capfirst }}"],
+      {% endfor %}
+    ];
+    onInitComplete({{ pk }}, children);    
+  }
 });
 //--></script>
 {% endif %}

@@ -29,13 +29,18 @@ var lastTr = Array();
 var oDetails = Array();
 // Tablas
 var oTable = Array();
+// pk de la tabla abierta en cada tab
+var oTabPks = Array();
+{% for domd in item_full_path reversed %}
+  oTabPks[{{ forloop.counter0 }}] = {{ domd.pk }};
+{% endfor %}
 
 // Div con detalles de las filas.
 var detailDiv;
 
 function openRow(pk, event) {
   /* Abre una fila de tabla.
-  this es el TD sobre el que se ha pulsado. Cierra la fila
+  "this" es el TD sobre el que se ha pulsado. Cierra la fila
   que estuviera abierta antes, y abre la que se ha pulsado.
   */
   var nTr = event.target.parentNode;
@@ -52,46 +57,68 @@ function openRow(pk, event) {
     table.fnOpen(nTr, "", "item_details_bottom");
     $(nTr).addClass("item_details_top")
     lastTr[pk] = nTr;
-    detailDiv.clone().appendTo($("#items"+pk+" .item_details_bottom")).show();
+    oDetails[pk].clone().appendTo($("#items"+pk+" .item_details_bottom")).show();
   }
 }
 
-function onInitComplete(pk) {
-  /* Ejecuta todas las tareas de inicializacion de la pagina */
-  /* muevo el filtro al menu popup */
+function goToInstance(pk) {
+  var currentPk = oTabPks[$oTabs.tabs('option', 'selected')];
+  var currentTd = $(lastTr[currentPk]).children("td")[0];
+  var currentCb = $(currentTd).children(":checkbox");
+  var url = '../goto/'+currentPk+'/'+currentCb.val()+'/'+pk+'/';
+  window.location = url;
+}
+
+function onInitComplete(pk, children) {
+  // Ejecuta todas las tareas de inicializacion de la pagina
+  // muevo el filtro al menu popup
   $("#items"+pk+"_filter").prependTo($("#item_menudiv_body"+pk));
-  /* Abro el menu popup cuando se pulse sobre la cabecera */
+  // Abro el menu popup cuando se pulse sobre la cabecera
   $(".item_openmenu"+pk).click(function(event) {
     $("#item_menudiv"+pk).toggle();
   });
-  /* Hago el menu arrastrable */
+  // Hago el menu arrastrable
   $("#item_menudiv"+pk).draggable();
-  /* Conecto toggleall con los checkboxes */
+  // Conecto toggleall con los checkboxes
   $("#item_toggleall"+pk).click(function(event) {
     var checked = this.checked;
-    jQuery.each($("#items"+pk+" tbody :checkbox"), function() {
+    $("#items"+pk+" tbody :checkbox").each(function() {
       this.checked = checked;
     });
   });
-  /* Conecto los checkboxes del menu con las columnas */
+  // Conecto los checkboxes del menu con las columnas
   $("#visibility_cb"+pk+" :checkbox").click(function(event) {
     oTable[pk].fnSetColumnVis(this.value, this.checked); 
   });
-  /* conecto el boton de reload */
+  // conecto el boton de reload
   $("#item_reload"+pk).click(function(event) {
-    var $tabs = $('#item_full_path').tabs();
-    $tabs.tabs('load', $tabs.tabs('option', 'selected'));
+    $oTabs.tabs('load', $oTabs.tabs('option', 'selected'));
+    event.preventDefault();
   });
-  /* Capturo el evento click de las columnas */
+  // Capturo el evento click de las columnas
   $("#items"+pk+" tbody tr :not(:first-child)").click(function(event) {
     openRow(pk, event);
   });
+  // Agrego los elementos indicados al DetailDiv
+  ddiv = detailDiv.clone();
+  dul = ddiv.children("ul");
+  if(children.length == 0) {
+    dul.append('<li>&lt;Vac&iacute;o&gt;</li>');
+  } else {
+    for(i in children) {
+      child = children[i];
+      child_pk = child[0];
+      child_nm = child[1];
+      dul.append('<li><a href="javascript:goToInstance('+child_pk+');">'+child_nm+'</a></li>');
+    }
+  }
+  oDetails[pk] = ddiv;
 }
 
 $(document).ready(function() {
-  detailDiv = $("#item_details");
   $("#h_select").editableSelect();
-  $("#item_full_path").tabs({
+  detailDiv = $("#item_details");
+  $oTabs = $("#item_full_path").tabs({
     cache: true,
     ajaxOptions: { cache: false }
   });
@@ -106,6 +133,7 @@ $(document).ready(function() {
   <ul class="item_toolbar">
     <li><a href="" id="current_item_edit"><img src="/resources/img/edit.png"/></a></li>
     <li><a href="" id="current_item_remove"><img src="/resources/img/remove.png"/></a></li>
+    <li><strong>Subtablas:</strong></li>
   </ul>
 </div>
 

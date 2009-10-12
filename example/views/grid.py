@@ -43,7 +43,9 @@ class GridRow(tuple):
         parents, instance = pathitem
         parents = (GridRow.GridCell("", unicode(x)) for x in parents)
         values  = (GridRow.make_item(instance, x, domd) for x in attribs)
-        return super(GridRow, cls).__new__(cls, chain(parents, values))
+        obj = super(GridRow, cls).__new__(cls, chain(parents, values))
+        obj.pk = instance.pk
+        return obj
 
 
 @login_required

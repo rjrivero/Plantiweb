@@ -6,6 +6,7 @@
 from .home import homeview
 from .grid import gridview
 from .help import helpview
+from .goto import gotoview
 #from .node import node
 #from .nodelist import nodelist
 

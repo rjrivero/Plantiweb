@@ -153,10 +153,12 @@ class HomeContext(dict):
         # Cargo los datos
         try:
             items = Cache.evaluate(q)
-        except:
+        except Exception, e:
             # TODO: volcar adecuadamente los datos de la excepcion
+            print "EXCEPCION! %s, query: %s" % (str(e), q)
             return
         if not hasattr(items, '__iter__') or not hasattr(items, '_type'):
+            print "LA QUERY NO HA RESULTADO EN UN DATASET!"
             return
         model = items._type
         self['item_full_path'] = tuple(x._DOMD for x in model._DOMD.path)
@@ -165,7 +167,7 @@ class HomeContext(dict):
     def run_query(self, request, q, pk=None):
         """Ejecuta la query y devuelve la lista de objetos
 
-        La query indica la query completa a ejecutar. Sin embargo, lo
+        "q" indica la consulta completa a ejecutar. Sin embargo, lo
         que se devuelve no es necesariamente el resultado de la query.
         Si pk != None, se va subiendo en la query (usando .up) hasta
         llegar a una tabla cuya pk sea la indicada.
@@ -180,16 +182,20 @@ class HomeContext(dict):
             while items._type._DOMD.pk != pk:
                 items = items.up
             model = items._type  
-        parents = tuple(x._DOMD.name for x in model._DOMD.parents)
         domd = model._DOMD
+        parents = dict((x._DOMD.pk, x._DOMD.name) for x in domd.parents)
+        children = domd.children.all().values()
+        children = dict((x._DOMD.pk, x._DOMD.name) for x in children)
         identities = tuple(profile.identity(x) for x in domd.parents)
         fields = profile.fields(model, tuple())
         summary = profile.summary(model, tuple())
         visible = set(summary)
         self['model'] = model
+        self['model_children'] = dict((x._DOMD.pk, x._DOMD.name) for x in domd.children.all().values());
         self['pk'] = domd.pk
         self['item_comments'] = domd.comments
         self['item_parents'] = parents
+        self['item_children'] = children
         self['item_summary'] = summary
         self['item_hiddens'] = tuple(x for x in fields if x not in visible)
         self['item_identity'] = profile.identity(model)
