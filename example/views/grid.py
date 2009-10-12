@@ -65,4 +65,3 @@ def gridview(request, pk=None):
         hc['item_griddata'] = items
     return render_to_response('datanav/grid.html', hc,
         context_instance=RequestContext(request))
-

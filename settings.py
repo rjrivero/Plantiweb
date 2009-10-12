@@ -16,6 +16,8 @@ ADMINS = (
 
 MANAGERS = ADMINS
 
+CACHE_BACKEND = "locmem:///"
+
 DATABASE_ENGINE = 'mysql'             # 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
 DATABASE_NAME = 'Example'             # Or path to database file if using sqlite3.
 DATABASE_USER = 'example'             # Not used with sqlite3.
@@ -73,7 +75,7 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'example.middleware.SQLLogMiddleware',
+    #'example.middleware.SQLLogMiddleware',
 )
 
 ROOT_URLCONF = 'plantiweb.urls'
@@ -101,4 +103,3 @@ INSTALLED_APPS = (
 # Settings para markitup
 MARKITUP_SET = 'markitup/sets/markdown'
 MARKITUP_SKIN = 'markitup/skins/markitup'
-
