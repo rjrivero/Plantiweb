@@ -4,7 +4,6 @@
 <head/>
 <body>
 <div class="item_div" id="item_div{{ pk }}">
-{% if item_summary %}
   {% load attrib %}
   <table class="items" id="items{{ pk }}">
   <thead><tr>
@@ -91,7 +90,6 @@ oTable[{{ pk }}] = $("#items{{ pk }}").dataTable({
   }
 });
 //--></script>
-{% endif %}
 </div>
 </body>
 </html>

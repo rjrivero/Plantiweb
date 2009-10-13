@@ -16,7 +16,6 @@ from .dblog import app_label
 from .dbcache import Cache
 from .dbraw import *
 from .dbfields import *
-from .dbjoin import QLeftOuterJoin
 
 
 class Table(models.Model):

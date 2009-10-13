@@ -211,7 +211,7 @@ class HomeContext(dict):
         """Actualiza el historico de comandos"""
         history = request.session.setdefault('history', [])
         #q = request.GET.get('q', request.session.get('q', u''))
-        q = request.GET.get('q', u'').strip()
+        q = request.GET.get('q', "").strip()
         h = int(request.GET.get('h', DEFAULT_HIST_LEN))
         h_list = (5, 10, 15, 20, 25)
         if 0 < h <= h_list[-1]:

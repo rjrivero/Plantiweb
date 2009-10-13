@@ -14,6 +14,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.forms import fields, widgets
 
+from plantillator.data.ip import IPAddress
+
 
 DB_IDENTIFIER_LENGTH = 16
 
@@ -93,14 +95,21 @@ class IPAddressWidget(widgets.TextInput):
         return super(IPAddressWidget, self).render(name, value, attrs)
 
 
-class IPAddressField(models.CharField):
+class IPAddressField(models.Field):
+
+    __metaclass__ = models.SubfieldBase
 
     def __init__(self, *arg, **kw):
         """Construye el campo y limita su longitud"""
         kw['max_length'] = 32
         super(IPAddressField, self).__init__(*arg, **kw)
 
+    def get_internal_type(self): 
+        return 'TextField'
+
     def to_python(self, value):
+        if isinstance(value, IPAddress):
+            return value
         if not value or value.isspace():
             return None
         try:
