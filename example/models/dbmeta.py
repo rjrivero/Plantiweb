@@ -64,9 +64,9 @@ class MetaData(MD):
         self.dbattribs = dict()
         self.comments = dict()
         model_attrs = {
+            '_annotations': models.TextField(blank=True, null=True),
             '_up': up,
             '_id': models.AutoField(primary_key=True),
-
         }
         # analizo los campos normales y saco campos dinamicos.
         # los attribs los tengo que pasar aparte, porque luego, cuando
@@ -172,6 +172,7 @@ class MetaData(MD):
         for link in instance.link_set.select_related('related').all():
             name, _name = link.name, link._name
             self.dbattribs[name] = _name
+            self.comments[name] = link.comment
             attribs.add(name)
             model_attrs[name] = link.field
             groups.setdefault(link.group, []).append(link)

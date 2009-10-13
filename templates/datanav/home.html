@@ -24,16 +24,19 @@
  */
 
 // Filas abiertas en cada tabla
-var lastTr = Array();
+var oLastTr = Array();
 // Detalles de las tablas 
 var oDetails = Array();
 // Tablas
 var oTable = Array();
+// Annotations
+var oAnnotations = Array();
 // pk de la tabla abierta en cada tab
-var oTabPks = Array();
+var oTabPks = {
 {% for domd in item_full_path reversed %}
-  oTabPks[{{ forloop.counter0 }}] = {{ domd.pk }};
+  {{ forloop.counter0 }}: {{ domd.pk }},
 {% endfor %}
+}
 
 // Div con detalles de las filas.
 var detailDiv;
@@ -44,26 +47,37 @@ function openRow(pk, event) {
   que estuviera abierta antes, y abre la que se ha pulsado.
   */
   var nTr = event.target.parentNode;
-  var oTr = lastTr[pk];
+  var oTr = oLastTr[pk];
   var table = oTable[pk];
+  // cierro la ultima fila abierta
   if(oTr) {
     table.fnClose(oTr);
     $(oTr).removeClass("item_details_top")
   }
+  // si se ha pulsado sobre la misma fila, no hago nada.
   if(nTr == oTr) {
-    lastTr[pk] = false;
+    oLastTr[pk] = false;
   }
   else {
-    table.fnOpen(nTr, "", "item_details_bottom");
+    // si se pulsa otra fila, hay que abrirla.
+    // busco las anotaciones, y las agrego al div.
+    item_td = $(nTr).children("td")[0];
+    item_cb = $(item_td).children(":checkbox");
+    annotation = oAnnotations[pk][item_cb.val()];
+    if(!annotation) {
+      annotation  = "";
+    }
+    table.fnOpen(nTr, '<div class="item_annotation">'+annotation+'</div>',
+                 "item_details_bottom");
     $(nTr).addClass("item_details_top")
-    lastTr[pk] = nTr;
-    oDetails[pk].clone().appendTo($("#items"+pk+" .item_details_bottom")).show();
+    oLastTr[pk] = nTr;
+    oDetails[pk].clone().prependTo($("#items"+pk+" .item_details_bottom")).show();
   }
 }
 
 function goToInstance(pk) {
   var currentPk = oTabPks[$oTabs.tabs('option', 'selected')];
-  var currentTd = $(lastTr[currentPk]).children("td")[0];
+  var currentTd = $(oLastTr[currentPk]).children("td")[0];
   var currentCb = $(currentTd).children(":checkbox");
   var url = '../goto/'+currentPk+'/'+currentCb.val()+'/'+pk+'/';
   window.location = url;
@@ -113,6 +127,15 @@ function onInitComplete(pk, children) {
     }
   }
   oDetails[pk] = ddiv;
+  // agrego los tooltips a las celdas con anotaciones
+  $("#items"+pk+" .item_annotated").each(function() {
+    td = $(this).children("td")[0];
+    cb = $(td).children(":checkbox");
+    an = oAnnotations[pk][cb.val()];
+    if(an) {
+        this.title = an;
+    }
+  });
 }
 
 $(document).ready(function() {

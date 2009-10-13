@@ -50,6 +50,10 @@
 }
 
 .item_dynamic {
+ font-weight: bold;
+}
+
+.item_annotated {
  color: red;
 }
 

@@ -169,7 +169,8 @@ class BaseField(models.Model):
 X = namedtuple('X', 'verbose, default, field, params')
 FIELDS = {
     'CharField':      X('texto',  '', models.CharField, {'max_length': 'len'}),
-    'IPAddressField': X('IP',     '', IPAddressField, {}),
+    'BooleanField':   X('si/no',  False, models.BooleanField, {}),
+    'IPAddressField': X('IP',     IPAddress('0.0.0.0'), IPAddressField, {}),
     'IntegerField':   X('numero', 0,  models.IntegerField,   {}),
 }
 

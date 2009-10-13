@@ -45,6 +45,7 @@ class GridRow(tuple):
         values  = (GridRow.make_item(instance, x, domd) for x in attribs)
         obj = super(GridRow, cls).__new__(cls, chain(parents, values))
         obj.pk = instance.pk
+        obj.annotations = instance._annotations
         return obj
 
 

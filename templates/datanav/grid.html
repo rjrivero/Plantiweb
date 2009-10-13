@@ -5,6 +5,7 @@
 <body>
 <div class="item_div" id="item_div{{ pk }}">
   {% load attrib %}
+  {% load markup %}
   <table class="items" id="items{{ pk }}">
   <thead><tr>
     <th>
@@ -43,7 +44,11 @@
   </tr></thead>
   <tbody>
   {% for row in item_griddata %}
+    {% if row.annotations %}
+    <tr class="item_annotated">
+    {% else %}
     <tr>
+    {% endif %}
     <td>
       <input type="checkbox" value="{{ row.pk }}"/>
     </td>
@@ -55,7 +60,10 @@
   </tbody>
   </table>
 <script language="javascript">//<!--
-lastTr[{{ pk }}] = false;
+oLastTr[{{ pk }}] = false;
+oAnnotations[{{pk}}] = {
+{% for row in item_griddata %}{% if row.annotations %}{{ row.pk }}: '{{ row.annotations|markdown|escapejs }}',{% endif %}{%endfor %}
+};
 oTable[{{ pk }}] = $("#items{{ pk }}").dataTable({
   bSaveState: true,
   bPaginate: false,
