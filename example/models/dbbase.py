@@ -125,13 +125,15 @@ class Deferrer(object):
 
         'pos' indica si debe usarse logica positiva (incluir los valores
         que cumplen el criterio) o negativa (excluirlos).
+        'agg' indica si la columna sobre la que se esta filtrando es un
+        agregado o no.
         """
         def decorate(colname, agg):
             return QueryItem(pos, "%s__%s" % (colname, operator), value, agg)
         return decorate
 
-    def __call__(self, item):
-        return self.defer(True, 'isnull', False)
+    def __call__(self, colname, agg):
+        return QueryItem(True, "%s__isnull" % colname, False, agg)
 
     def __eq__(self, other):
         operator = isinstance(other, numbers.Real) and 'exact' or 'iexact'
