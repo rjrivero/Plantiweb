@@ -213,9 +213,11 @@ class Field(BaseField):
     # posiblemente todos menos "comment"
     METAFIELDS = list(chain(BaseField.METAFIELDS, ['table', 'kind',  'len']))
 
-    @property
-    def field(self):
-        """Construye un models.Field con los campos del objeto"""
+    def _field(self, **kw):
+        """Construye un models.Field con los campos del objeto.
+        Acepta argumentos con nombre, que se le pasan directamente al
+        constructor del tipo creado.
+        """
         attrs = FIELDS[self.kind]
         ftype = attrs.field
         fparm = dict((x, getattr(self, y))
@@ -226,7 +228,12 @@ class Field(BaseField):
         # facilidades para borrar los indices una vez creados.
         #fparm['db_index'] = (self.index == MULTIPLE_INDEX)
         #fparm['unique'] = (self.index == UNIQUE_INDEX)
+        fparm.update(kw)
         return ftype(**fparm)
+
+    @property
+    def field(self):
+        return self._field(verbose_name=self.name)
 
     @property
     def default(self):
@@ -240,7 +247,7 @@ class Field(BaseField):
             return self._code
         except AttributeError:
             # no se ha accedido al objeto por el manager, no tenemos cargado
-            # el campo "code". Usamos el metodo normal.
+            # el campo "_code". Usamos el metodo normal.
             try:
                 self._code = self.dynamic.code
             except Dynamic.DoesNotExist:
@@ -325,7 +332,7 @@ class Link(BaseField):
 
     @property
     def field(self):
-        return self.related.field
+        return self.related._field(verbose_name=self.name)
 
     @property
     def default(self):

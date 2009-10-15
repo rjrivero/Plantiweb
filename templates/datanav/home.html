@@ -128,7 +128,7 @@ function onInitComplete(pk, children) {
   }
   oDetails[pk] = ddiv;
   // agrego los tooltips a las celdas con anotaciones
-  $("#items"+pk+" .item_annotated").each(function() {
+  /*$("#items"+pk+" .item_annotated").each(function() {
     td = $(this).children("td")[0];
     cb = $(td).children(":checkbox");
     an = oAnnotations[pk][cb.val()];
@@ -136,6 +136,7 @@ function onInitComplete(pk, children) {
         this.title = an;
     }
   });
+  */
 }
 
 $(document).ready(function() {

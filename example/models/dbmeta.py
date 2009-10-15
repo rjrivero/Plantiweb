@@ -54,7 +54,8 @@ class MetaData(MD):
         """
         parent = Cache[instance.parent] if instance.parent else None
         if parent:
-            up = models.ForeignKey(parent, blank=True, null=True)
+            up = models.ForeignKey(parent, blank=True, null=True,
+                verbose_name="Subtabla de")
         else:
             @property
             def up(self):
@@ -64,7 +65,8 @@ class MetaData(MD):
         self.dbattribs = dict()
         self.comments = dict()
         model_attrs = {
-            '_annotations': models.TextField(blank=True, null=True),
+            '_annotations': models.TextField(blank=True, null=True,
+                verbose_name="Anotaciones"),
             '_up': up,
             '_id': models.AutoField(primary_key=True),
         }

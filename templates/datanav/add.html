@@ -1,0 +1,34 @@
+{% extends "datanav/base.html" %}
+
+{% block title %}Nueva entrada de {{ fullname }}{% endblock %}
+{% block description %}Nueva entrada de {{ fullname }}{% endblock %}
+
+{% block stylesheets %}
+{{ block.super }}
+<link rel="stylesheet" href="/resources/css/edit.css" type="text/css"/>
+{% endblock %}
+
+{% block content %}
+
+{% if form %}
+  <form id="form_add" class="item_edit_form" method="POST">
+    <input type="hidden" name="do" value="1"/>
+    <div id="div_add" class="item_edit_div">
+      <table id="table_add" class="item_edit_table">
+      <thead>
+        <tr><th colspan="2">{{ fullname }}</th></tr>
+      </thead>
+      <tbody>
+        {{ form.as_table }}
+      </tbody>
+      <tfoot>
+        <th>&nbsp;</th><th><input type="submit" value="Guardar"/></th>
+      </tfoot>
+      </table>
+    </div>
+  </form>
+{% else %}
+  <span class="forbidden">No tiene permiso para editar la tabla {{ fullname }}</span>
+{% endif %}
+
+{% endblock %}

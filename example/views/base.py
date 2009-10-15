@@ -5,6 +5,8 @@
 
 from functools import wraps
 
+from django.forms import ModelForm
+
 from ..models import ChangeLog, Cache, Table, UserView, TableView, View
 
 
@@ -68,6 +70,19 @@ class Profile(object):
             if item in uniques:
                 return item
         return 'pk'
+
+    def form(self, model):
+        """Crea un formulario para editar el modelo dado"""
+        domd = model._DOMD
+        m, f = model, self.fields(model, None)
+        f = list(domd.dbattribs[x] for x in f)
+        f.append('_annotations')
+        if not f:
+            return None
+        class Meta:
+            model = m
+            fields = f
+        return type('DynForm', (ModelForm,), {'Meta': Meta})
 
 
 def with_profile(func):
