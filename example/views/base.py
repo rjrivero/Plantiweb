@@ -76,9 +76,12 @@ class Profile(object):
         domd = model._DOMD
         m, f = model, self.fields(model, None)
         f = list(domd.dbattribs[x] for x in f)
-        f.append('_annotations')
         if not f:
             return None
+        f.append('_annotations')
+        if domd.parent._DOMD.pk:
+            # la tabla no es top level, permitimos que se edite "up"
+            f.insert(0, '_up')
         class Meta:
             model = m
             fields = f
