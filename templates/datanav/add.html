@@ -1,7 +1,7 @@
 {% extends "datanav/base.html" %}
 
-{% block title %}Nueva entrada de {{ fullname }}{% endblock %}
-{% block description %}Nueva entrada de {{ fullname }}{% endblock %}
+{% block title %}Nueva entrada de {{ full_name }}{% endblock %}
+{% block description %}Nueva entrada de {{ full_name }}{% endblock %}
 
 {% block stylesheets %}
 {{ block.super }}
@@ -16,7 +16,7 @@
     <div id="div_add" class="item_edit_div">
       <table id="table_add" class="item_edit_table">
       <thead>
-        <tr><th colspan="2">{{ fullname }}</th></tr>
+        <tr><th colspan="2">{{ full_name }}</th></tr>
       </thead>
       <tbody>
         {{ form.as_table }}
@@ -28,7 +28,7 @@
     </div>
   </form>
 {% else %}
-  <span class="forbidden">No tiene permiso para editar la tabla {{ fullname }}</span>
+  <span class="forbidden">No tiene permiso para editar la tabla {{ full_name }}</span>
 {% endif %}
 
 {% endblock %}

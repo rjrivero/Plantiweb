@@ -167,7 +167,7 @@ class Deferrer(object):
     def __add__(self, arg):
         """Comprueba la pertenecia a una lista"""
         if isinstance(arg, DJValueSet):
-            # para hacer una subquery, y no sacara los
+            # para hacer una subquery, y no sacar los
             # datos antes de hacer la consulta.
             arg = arg._queryset.values(arg._attrib)
         else:
@@ -177,7 +177,7 @@ class Deferrer(object):
     def __sub__(self, arg):
         """Comprueba la no pertenencia a una lista"""
         if isinstance(arg, DJValueSet):
-            # para hacer una subquery, y no sacara los
+            # para hacer una subquery, y no sacar los
             # datos antes de hacer la consulta.
             arg = arg._queryset.values(arg._attrib)
         else:

@@ -72,7 +72,7 @@ class MetaData(MD):
         }
         # analizo los campos normales y saco campos dinamicos.
         # los attribs los tengo que pasar aparte, porque luego, cuando
-        # llame al constructor de MEtaData, me los machaca.
+        # llame al constructor de MetaData, me los machaca.
         attribs = set()
         dynamics = self._get_fields(instance, model_attrs, attribs)
         # analizo los campos enlazados y saco filtros.

@@ -32,6 +32,7 @@ class Profile(object):
         self._identities = dict()
         self._fields = dict()
         self._summaries = dict()
+        self._forms = dict()
 
     def identity(self, model, default=None):
         return self._cached(self._identities, model, self._identity)
@@ -72,8 +73,20 @@ class Profile(object):
         return 'pk'
 
     def form(self, model):
-        """Crea un formulario para editar el modelo dado"""
+        """Crea un formulario para editar el modelo dado
+
+        El formulario creado está basado en un ModelForm de Django, con
+        las siguentes particularidades:
+
+        - Solo los campos editables por el usuario están en el form.
+        - Agrega el objeto ModelForm una propiedad, "partial_cleaned_data",
+          con los datos que se han validado correctamente durante is_valid 
+        """
         domd = model._DOMD
+        try:
+            return self._forms[domd.pk]
+        except (AttributeError, KeyError):
+            pass
         m, f = model, self.fields(model, None)
         f = list(domd.dbattribs[x] for x in f)
         if not f:
@@ -82,10 +95,27 @@ class Profile(object):
         if domd.parent._DOMD.pk:
             # la tabla no es top level, permitimos que se edite "up"
             f.insert(0, '_up')
-        class Meta:
-            model = m
-            fields = f
-        return type('DynForm', (ModelForm,), {'Meta': Meta})
+        class DynForm(ModelForm):
+            def __init__(self, *arg, **kw):
+                super(DynForm, self).__init__(*arg, **kw)
+                self.partial_cleaned_data = dict()
+            class Meta:
+                model = m
+                fields = f
+        # Nos aprovechamos de una caracteristica de los formularios de Django:
+        # cuando se limpia el valor de un campo, lo ultimo que se hace para
+        # validarlo es invocar una funcion "clean_%s" % name. Utilizamos esa
+        # funcion para almacenar los valores parcialmente validados.
+        def partial_closure(field):
+            def fake_clean(self):
+                value = self.cleaned_data[field]
+                self.partial_cleaned_data[field] = value
+                return value
+            return fake_clean
+        for field in f:
+            fcleaner = "clean_%s" % str(field)
+            setattr(DynForm, fcleaner, partial_closure(field))
+        return self._forms.setdefault(domd.pk, DynForm)
 
 
 def with_profile(func):
@@ -112,3 +142,4 @@ def with_profile(func):
             profile.invalidate()
         return func(request, *arg, **kw)
     return view
+
