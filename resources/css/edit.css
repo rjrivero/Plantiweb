@@ -1,0 +1,51 @@
+/* Estilos para los formularios de Add / Edit / Remove */
+.item_edit_div {
+ width: 100%;
+ padding: 2em;
+ text-align: center;
+}
+
+.item_edit_form {
+ border: 0;
+}
+
+.item_edit_table {
+ margin: auto;
+}
+
+.item_edit_table thead th {
+ font-weight: normal;
+ text-align: center;
+ background-color: #e1e1ff;
+ padding: 1.5em;
+ border: thin solid black;
+}
+
+.item_edit_table tbody th, .item_edit_table tbody td {
+ text-align: left;
+ padding: 1em 1em 0 1em;
+ vertical-align: top;
+}
+
+.item_edit_table tfoot th {
+ text-align: center;
+ padding: 1em;
+}
+
+.item_edit_table input[type=submit] {
+ width: 100%;
+}
+
+ul.errorlist {
+ list-style: none;
+ color: red;
+ margin: 0.2em 0 0.2em 0;
+ padding: 0.2em 0 0.2em 0;
+}
+
+ul.errorlist li {
+ display: inline;
+ border: solid 1px blue;
+ background: #ffd;
+ padding: 0.2em 1em 0.2em 1em;
+}

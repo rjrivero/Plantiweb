@@ -1,0 +1,25 @@
+Dependencias de la aplicacion:
+
+1.- Django: probado con la version 1.1.1 y el patch django-extra-join-1.1.diff.
+    Desempaquetado y parcheado en el propio sistema (no en el repositorio).
+
+2.- Jquery: probado con la version 1.3.2
+    Extraido solo el js a /resources/jscript/jquery.min.js
+
+3.- Jquery UI: probado con la version 1.7.2
+    Extraido todos los efectos y elementos, en su version "minified", a /resources/jscript/ui.
+    Creado un tema personalizado y extraidos los css y media an /resources/css/js-ui-custom
+
+4.- Jquery dataTables: probado con la version 1.5.4
+    Extraido js a /resources/jscript/jquery.dataTables.min.js
+    Extraido css a /resources/css/demo_table_jui.css
+
+5.- Jquery editable-select: descargado de:
+    http://coffeescripter.com/code/editable-select/
+    Y modificado para que funcione como quiero.
+    Extraido js a /resources/jscript/jquery.editable-select.js
+    Extraido css a /resources/css/jquery.editable-select.css
+
+6.- Markitup: probado con la version 1.1.5
+    Desempaquetado en /markitup (codigo) y /resources/markitup (media).
+

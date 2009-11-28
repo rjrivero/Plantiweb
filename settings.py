@@ -21,7 +21,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 DATABASE_ENGINE = 'mysql'             # 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
 DATABASE_NAME = 'Example'             # Or path to database file if using sqlite3.
-DATABASE_USER = 'example'             # Not used with sqlite3.
+DATABASE_USER = 'ui'             # Not used with sqlite3.
 DATABASE_PASSWORD = 'nextiraone'      # Not used with sqlite3.
 DATABASE_HOST = ''             # Set to empty string for localhost. Not used with sqlite3.
 DATABASE_PORT = ''             # Set to empty string for default. Not used with sqlite3.
@@ -76,13 +76,13 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    #'example.middleware.SQLLogMiddleware',
+    #'ui.middleware.SQLLogMiddleware',
 )
 
 ROOT_URLCONF = 'plantiweb.urls'
-AUTH_PROFILE_MODULE = 'example.UserView'
-LOGIN_URL = '/example/login/'
-LOGIN_REDIRECT_URL = '/example/home/'
+AUTH_PROFILE_MODULE = 'ui.UserView'
+LOGIN_URL = '/ui/login/'
+LOGIN_REDIRECT_URL = '/ui/home/'
 
 TEMPLATE_DIRS = (
     # Put strings here, like "/home/html/django_templates" or "C:/www/django/templates".
@@ -98,7 +98,7 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.admin',
     'django.contrib.markup',
-    'plantiweb.example',
+    'plantiweb.ui',
 )
 
 # Settings para markitup
